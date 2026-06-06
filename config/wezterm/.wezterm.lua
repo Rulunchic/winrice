@@ -7,11 +7,16 @@ local theme = {
   font_family = 'JetBrains Mono',
   font_size = 14.0,
   opacity = 0.85,
-  border_focused = '#2b6f7c',   -- Zenbones Water (Deep Teal)
-  border_unfocused = '#b2a9a5', -- Zenbones Muted Sand
-  bg_color = '#f0edec',         -- Zenbones Sand background
-  fg_color = '#2c363c',         -- Zenbones Stone foreground
-  accent_color = '#cbd9e3',     -- Zenbones Selection background
+  border_focused = '#2b6f7c',
+  border_unfocused = '#b2a9a5',
+  bg_color = '#ff4000',
+  fg_color = '#2c363c',
+  accent_color = '#cbd9e3',
+  lavender = '#dfd9e2',
+  lilac = '#c3acce',
+  lavender_grey = '#89909f',
+  pine_blue = '#538083',
+  jungle_teal = '#2a7f62',
 }
 -- @theme-end
 

@@ -29,16 +29,16 @@
     jungle_teal: string;
   }
 
-  // Active view: 'configs' | 'theme'
-  let activeTab = $state<'configs' | 'theme'>('theme');
+  // Active view: 'theme' | 'configs'
+  let activeTab = $state<'theme' | 'configs'>('theme');
 
   // Configurations state
   let configs = $state<ConfigInfo[]>([]);
   let selectedKey = $state<string>('');
-  let editorContent = $state<string>('');
-  let isEditing = $state<boolean>(false);
+  let rawContent = $state<string>('');
   let statusMsg = $state<string>('');
   let isLoading = $state<boolean>(false);
+  let editMode = $state<'visual' | 'text'>('visual');
 
   // Global Theme state
   let theme = $state<ThemeInfo>({
@@ -56,6 +56,26 @@
     pine_blue: '#538083',
     jungle_teal: '#2a7f62',
   });
+
+  // Visual Form state variables (synchronized to config file structures)
+  let glazeInnerGap = $state<number>(10);
+  let glazeOuterGap = $state<number>(10);
+  let glazeFocusFollowsCursor = $state<boolean>(false);
+
+  let zedFontSize = $state<number>(14);
+  let zedFontFamily = $state<string>('JetBrains Mono');
+  let zedMinimap = $state<boolean>(false);
+
+  let vscodeFontSize = $state<number>(14);
+  let vscodeFontFamily = $state<string>('JetBrains Mono');
+  let vscodeMinimap = $state<boolean>(false);
+
+  let gitName = $state<string>('');
+  let gitEmail = $state<string>('');
+
+  let komorebiBorder = $state<boolean>(false);
+  let komorebiBorderWidth = $state<number>(2);
+  let komorebiLayout = $state<string>('bsp');
 
   // Presets definition
   const presets = {
@@ -184,10 +204,109 @@
     statusMsg = `Loaded preset: ${preset.name}`;
   }
 
+  // Parse config values into visual variables
+  function parseVisualVariables(key: string, content: string) {
+    if (key === 'glazewm') {
+      const innerMatch = content.match(/inner:\s*(\d+)/);
+      if (innerMatch) glazeInnerGap = parseInt(innerMatch[1]);
+
+      const outerMatch = content.match(/outer:\s*(\d+)/);
+      if (outerMatch) glazeOuterGap = parseInt(outerMatch[1]);
+
+      const focusMatch = content.match(/focus_follows_cursor:\s*(true|false)/);
+      if (focusMatch) glazeFocusFollowsCursor = focusMatch[1] === 'true';
+    } else if (key === 'zed') {
+      try {
+        const cleanJson = content.replace(/\/\/.*|\/\*[\s\S]*?\*\//g, ''); // strip comments
+        const parsed = JSON.parse(cleanJson);
+        if (parsed.buffer_font_size) zedFontSize = parsed.buffer_font_size;
+        if (parsed.buffer_font_family) zedFontFamily = parsed.buffer_font_family;
+        if (parsed.show_minimap !== undefined) zedMinimap = parsed.show_minimap;
+      } catch (e) {
+        console.warn('Failed to parse Zed settings:', e);
+      }
+    } else if (key === 'vscode') {
+      try {
+        const cleanJson = content.replace(/\/\/.*|\/\*[\s\S]*?\*\//g, '');
+        const parsed = JSON.parse(cleanJson);
+        if (parsed['editor.fontSize']) vscodeFontSize = parsed['editor.fontSize'];
+        if (parsed['editor.fontFamily']) vscodeFontFamily = parsed['editor.fontFamily'];
+        if (parsed['editor.minimap.enabled'] !== undefined) vscodeMinimap = parsed['editor.minimap.enabled'];
+      } catch (e) {
+        console.warn('Failed to parse VS Code settings:', e);
+      }
+    } else if (key === 'gitconfig') {
+      const nameMatch = content.match(/name\s*=\s*(.+)/);
+      if (nameMatch) gitName = nameMatch[1].trim();
+
+      const emailMatch = content.match(/email\s*=\s*(.+)/);
+      if (emailMatch) gitEmail = emailMatch[1].trim();
+    } else if (key === 'komorebi') {
+      try {
+        const parsed = JSON.parse(content);
+        if (parsed.enable_border !== undefined) komorebiBorder = parsed.enable_border;
+        if (parsed.border_width !== undefined) komorebiBorderWidth = parsed.border_width;
+        if (parsed.default_layout !== undefined) komorebiLayout = parsed.default_layout;
+      } catch (e) {
+        console.warn('Failed to parse Komorebi settings:', e);
+      }
+    }
+  }
+
+  // Serialize visual variables back to config format
+  function serializeVisualVariables(key: string, content: string): string {
+    if (key === 'glazewm') {
+      let result = content;
+      result = result.replace(/inner:\s*\d+/g, `inner: ${glazeInnerGap}`);
+      result = result.replace(/outer:\s*\d+/g, `outer: ${glazeOuterGap}`);
+      result = result.replace(/focus_follows_cursor:\s*(true|false)/g, `focus_follows_cursor: ${glazeFocusFollowsCursor}`);
+      return result;
+    } else if (key === 'zed') {
+      try {
+        const cleanJson = content.replace(/\/\/.*|\/\*[\s\S]*?\*\//g, '');
+        const parsed = JSON.parse(cleanJson);
+        parsed.buffer_font_size = zedFontSize;
+        parsed.buffer_font_family = zedFontFamily;
+        parsed.show_minimap = zedMinimap;
+        return JSON.stringify(parsed, null, 2);
+      } catch (e) {
+        statusMsg = 'JSON formatting error, fallback to text editor';
+        return content;
+      }
+    } else if (key === 'vscode') {
+      try {
+        const cleanJson = content.replace(/\/\/.*|\/\*[\s\S]*?\*\//g, '');
+        const parsed = JSON.parse(cleanJson);
+        parsed['editor.fontSize'] = vscodeFontSize;
+        parsed['editor.fontFamily'] = vscodeFontFamily;
+        parsed['editor.minimap.enabled'] = vscodeMinimap;
+        return JSON.stringify(parsed, null, 2);
+      } catch (e) {
+        statusMsg = 'JSON formatting error';
+        return content;
+      }
+    } else if (key === 'gitconfig') {
+      let result = content;
+      result = result.replace(/name\s*=\s*(.+)/g, `name = ${gitName}`);
+      result = result.replace(/email\s*=\s*(.+)/g, `email = ${gitEmail}`);
+      return result;
+    } else if (key === 'komorebi') {
+      try {
+        const parsed = JSON.parse(content);
+        parsed.enable_border = komorebiBorder;
+        parsed.border_width = komorebiBorderWidth;
+        parsed.default_layout = komorebiLayout;
+        return JSON.stringify(parsed, null, 2);
+      } catch (e) {
+        return content;
+      }
+    }
+    return content;
+  }
+
   async function loadFile(key: string) {
     statusMsg = '';
-    isEditing = false;
-    editorContent = '';
+    rawContent = '';
     
     const config = configs.find(c => c.key === key);
     if (!config || config.isDir || !config.inRepo) return;
@@ -195,8 +314,8 @@
     try {
       const res = await fetch(`/api/file?key=${key}`);
       if (res.ok) {
-        editorContent = await res.text();
-        isEditing = true;
+        rawContent = await res.text();
+        parseVisualVariables(key, rawContent);
       } else {
         statusMsg = 'Failed to load file content';
       }
@@ -205,18 +324,22 @@
     }
   }
 
-  async function saveFile() {
+  async function saveConfig(visual: boolean = true) {
     if (!selectedKey) return;
     statusMsg = 'Saving...';
+    
+    const contentToSave = visual ? serializeVisualVariables(selectedKey, rawContent) : rawContent;
+
     try {
       const res = await fetch('/api/file/write', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key: selectedKey, content: editorContent })
+        body: JSON.stringify({ key: selectedKey, content: contentToSave })
       });
       if (res.ok) {
-        statusMsg = 'Saved';
-        setTimeout(() => { if (statusMsg === 'Saved') statusMsg = ''; }, 2000);
+        statusMsg = 'Configuration saved';
+        rawContent = contentToSave;
+        setTimeout(() => { if (statusMsg === 'Configuration saved') statusMsg = ''; }, 2000);
       } else {
         const err = await res.text();
         statusMsg = `Save failed: ${err}`;
@@ -288,7 +411,7 @@
     </div>
   </header>
 
-  <!-- Left Sidebar (Configs list or Presets list depending on activeTab) -->
+  <!-- Left Sidebar -->
   <aside class="sidebar panel">
     {#if activeTab === 'theme'}
       <div class="section-title">THEME PRESETS</div>
@@ -453,42 +576,156 @@
     {:else}
       <!-- Configurations Tab -->
       {#if selectedConfig}
-        <div class="info-grid">
-          <h2>{selectedConfig.name} Configuration</h2>
-          
-          <div class="meta-row">
-            <span class="meta-label">Active Path:</span>
-            <code class="meta-value">{selectedConfig.targetPath}</code>
+        <div class="config-view-header">
+          <div class="info-grid">
+            <h2>{selectedConfig.name} Settings</h2>
+            <div class="meta-row">
+              <span class="meta-label">Active Path:</span>
+              <code class="meta-value">{selectedConfig.targetPath}</code>
+            </div>
+            <div class="meta-row">
+              <span class="meta-label">Sync Mode:</span>
+              <span class="meta-value">{selectedConfig.isSymlink ? 'Junction Link' : 'Copy Sync (Fallback)'}</span>
+            </div>
           </div>
-          <div class="meta-row">
-            <span class="meta-label">Repository Path:</span>
-            <code class="meta-value">{selectedConfig.repoPath}</code>
-          </div>
-          
-          <div class="status-row">
-            <span class="meta-label">Status:</span>
-            <span class="status-value">
-              {#if selectedConfig.isSymlink}
-                Linked dynamically via symlink to repository.
-              {:else}
-                Warning: Configuration not symlinked yet.
-              {/if}
-            </span>
+          <div class="view-controls">
+            <button class="tab-btn" class:active={editMode === 'visual'} onclick={() => editMode = 'visual'} disabled={selectedConfig.isDir || selectedConfig.key === 'sync_script'}>Visual Editor</button>
+            <button class="tab-btn" class:active={editMode === 'text'} onclick={() => editMode = 'text'} disabled={selectedConfig.isDir}>Code Editor</button>
           </div>
         </div>
 
-        <!-- Text Editor Section -->
-        {#if isEditing}
+        <!-- Custom Visual Form depending on Config Key -->
+        {#if editMode === 'visual'}
+          <div class="visual-form panel">
+            <!-- GlazeWM Visual settings -->
+            {#if selectedConfig.key === 'glazewm'}
+              <div class="visual-section">
+                <h3>GlazeWM Window Tiling Settings</h3>
+                <div class="editor-row">
+                  <label for="glaze-inner">Inner Window Gap (px):</label>
+                  <input type="number" id="glaze-inner" bind:value={glazeInnerGap} />
+                </div>
+                <div class="editor-row">
+                  <label for="glaze-outer">Outer Border Gap (px):</label>
+                  <input type="number" id="glaze-outer" bind:value={glazeOuterGap} />
+                </div>
+                <div class="editor-row">
+                  <label class="checkbox-label">
+                    <input type="checkbox" bind:checked={glazeFocusFollowsCursor} />
+                    Focus Follows Cursor
+                  </label>
+                </div>
+                <button class="primary" onclick={() => saveConfig(true)}>Save Settings</button>
+              </div>
+
+            <!-- Zed Editor Visual settings -->
+            {:else if selectedConfig.key === 'zed'}
+              <div class="visual-section">
+                <h3>Zed Editor Global Settings</h3>
+                <div class="editor-row">
+                  <label for="zed-font">Font Family:</label>
+                  <input type="text" id="zed-font" bind:value={zedFontFamily} />
+                </div>
+                <div class="editor-row">
+                  <label for="zed-size">Font Size (px):</label>
+                  <input type="number" id="zed-size" bind:value={zedFontSize} />
+                </div>
+                <div class="editor-row">
+                  <label class="checkbox-label">
+                    <input type="checkbox" bind:checked={zedMinimap} />
+                    Show Code Minimap
+                  </label>
+                </div>
+                <button class="primary" onclick={() => saveConfig(true)}>Save Settings</button>
+              </div>
+
+            <!-- VS Code Visual settings -->
+            {:else if selectedConfig.key === 'vscode'}
+              <div class="visual-section">
+                <h3>VS Code Editor Settings</h3>
+                <div class="editor-row">
+                  <label for="vscode-font">Font Family:</label>
+                  <input type="text" id="vscode-font" bind:value={vscodeFontFamily} />
+                </div>
+                <div class="editor-row">
+                  <label for="vscode-size">Font Size (px):</label>
+                  <input type="number" id="vscode-size" bind:value={vscodeFontSize} />
+                </div>
+                <div class="editor-row">
+                  <label class="checkbox-label">
+                    <input type="checkbox" bind:checked={vscodeMinimap} />
+                    Enable Code Minimap
+                  </label>
+                </div>
+                <button class="primary" onclick={() => saveConfig(true)}>Save Settings</button>
+              </div>
+
+            <!-- Git Config Visual settings -->
+            {:else if selectedConfig.key === 'gitconfig'}
+              <div class="visual-section">
+                <h3>Git Global User Settings</h3>
+                <div class="editor-row">
+                  <label for="git-name">Global Username:</label>
+                  <input type="text" id="git-name" bind:value={gitName} />
+                </div>
+                <div class="editor-row">
+                  <label for="git-email">Global Email:</label>
+                  <input type="text" id="git-email" bind:value={gitEmail} />
+                </div>
+                <button class="primary" onclick={() => saveConfig(true)}>Save Settings</button>
+              </div>
+
+            <!-- Komorebi Visual settings -->
+            {:else if selectedConfig.key === 'komorebi'}
+              <div class="visual-section">
+                <h3>Komorebi Window Manager Settings</h3>
+                <div class="editor-row">
+                  <label class="checkbox-label">
+                    <input type="checkbox" bind:checked={komorebiBorder} />
+                    Enable Active Window Border
+                  </label>
+                </div>
+                <div class="editor-row">
+                  <label for="komorebi-width">Border Width (px):</label>
+                  <input type="number" id="komorebi-width" bind:value={komorebiBorderWidth} />
+                </div>
+                <div class="editor-row">
+                  <label for="komorebi-layout">Default Workspace Layout:</label>
+                  <select id="komorebi-layout" bind:value={komorebiLayout}>
+                    <option value="bsp">BSP (Binary Space Partitioning)</option>
+                    <option value="columns">Columns</option>
+                    <option value="rows">Rows</option>
+                  </select>
+                </div>
+                <button class="primary" onclick={() => saveConfig(true)}>Save Settings</button>
+              </div>
+
+            <!-- WezTerm is configured via global theme, but show details here -->
+            {:else if selectedConfig.key === 'wezterm'}
+              <div class="visual-section">
+                <h3>WezTerm Settings</h3>
+                <p class="desc-text">WezTerm settings are managed directly in the **Theme Editor** tab to serve as the unified source of truth for the entire workspace style pipeline.</p>
+                <button onclick={() => activeTab = 'theme'}>Open Theme Editor</button>
+              </div>
+
+            {:else if selectedConfig.isDir}
+              <div class="editor-placeholder">
+                Zebar is a directory containing multiple files. Files are linked automatically, but must be edited via terminal or filesystem inside <code>config/zebar/</code>.
+              </div>
+            {:else}
+              <div class="editor-placeholder">
+                Visual editor not available for this configuration. Use the **Code Editor** tab instead.
+              </div>
+            {/if}
+          </div>
+        {:else}
+          <!-- Text/Code Editor Section -->
           <div class="editor-section">
             <div class="editor-header">
               <span>Plaintext Config Editor (Direct Repo Sync)</span>
-              <button class="primary" onclick={saveFile}>Save Config</button>
+              <button class="primary" onclick={() => saveConfig(false)}>Save Config</button>
             </div>
-            <textarea bind:value={editorContent} spellcheck="false"></textarea>
-          </div>
-        {:else if selectedConfig.isDir}
-          <div class="editor-placeholder">
-            Zebar is a directory containing multiple files. Files are linked automatically, but must be edited via terminal or filesystem inside <code>config/zebar/</code>.
+            <textarea bind:value={rawContent} spellcheck="false"></textarea>
           </div>
         {/if}
       {:else}
@@ -653,6 +890,28 @@
     overflow-y: auto;
   }
 
+  .config-view-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 12px;
+  }
+
+  .config-view-header .info-grid {
+    border: none;
+    padding: 0;
+  }
+
+  .view-controls {
+    display: flex;
+    gap: 4px;
+    background: rgba(0, 0, 0, 0.03);
+    padding: 2px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+  }
+
   .theme-editor {
     display: flex;
     flex-direction: column;
@@ -671,7 +930,7 @@
     margin-top: 8px;
   }
 
-  .theme-section {
+  .theme-section, .visual-form {
     display: flex;
     flex-direction: column;
     gap: 10px;
@@ -679,6 +938,32 @@
     border: 1px solid var(--border);
     border-radius: 4px;
     padding: 12px;
+  }
+
+  .visual-form {
+    background: var(--bg-panel);
+    flex-grow: 1;
+  }
+
+  .visual-section {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-width: 500px;
+  }
+
+  .visual-section h3 {
+    font-size: 0.95rem;
+    color: var(--accent);
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 4px;
+    margin-bottom: 4px;
+  }
+
+  .desc-text {
+    font-size: 0.875rem;
+    color: var(--fg-muted);
+    line-height: 1.5;
   }
 
   .theme-section.span-2 {
@@ -701,11 +986,23 @@
   }
 
   .editor-row label {
-    min-width: 120px;
+    min-width: 170px;
     color: var(--fg-muted);
   }
 
-  .editor-row input[type="text"], .editor-row input[type="number"] {
+  .checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .checkbox-label input {
+    cursor: pointer;
+  }
+
+  .editor-row input[type="text"], .editor-row input[type="number"], .editor-row select {
     flex-grow: 1;
     padding: 4px 8px;
     border-radius: 4px;
@@ -771,38 +1068,32 @@
   .info-grid {
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    border-bottom: 1px solid var(--border);
-    padding-bottom: 16px;
+    gap: 4px;
   }
 
   h2 {
     font-size: 1.15rem;
-    margin-bottom: 4px;
+    margin-bottom: 2px;
   }
 
-  .meta-row, .status-row {
+  .meta-row {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     gap: 8px;
+    font-size: 0.8rem;
   }
 
   .meta-label {
-    min-width: 130px;
+    min-width: 100px;
     color: var(--fg-muted);
-    font-weight: 500;
   }
 
   .meta-value {
     background: rgba(0, 0, 0, 0.04);
-    padding: 2px 6px;
+    padding: 1px 6px;
     border-radius: 4px;
-    font-size: 0.85rem;
+    font-size: 0.75rem;
     word-break: break-all;
-  }
-
-  .status-value {
-    color: var(--fg);
   }
 
   .editor-section {

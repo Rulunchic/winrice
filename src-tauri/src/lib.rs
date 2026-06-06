@@ -20,7 +20,7 @@ pub fn run() {
       let child = if cfg!(debug_assertions) {
         Command::new("go")
           .args(["run", "main.go", "-port", "54321"])
-          .current_dir("src-go") // Svelte CLI runs from root
+          .current_dir("../src-go") // Svelte CLI runs from root, Tauri runs from src-tauri
           .spawn()
           .ok()
       } else {

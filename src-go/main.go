@@ -61,6 +61,48 @@ var configs = []ConfigInfo{
 		RepoPath:   "config\\Theme\\sync_theme.ps1",
 		IsDir:      false,
 	},
+	{
+		Key:        "zed",
+		Name:       "Zed Editor",
+		TargetPath: "C:\\Users\\Timofey\\AppData\\Roaming\\Zed\\settings.json",
+		RepoPath:   "config\\Zed\\settings.json",
+		IsDir:      false,
+	},
+	{
+		Key:        "vscode",
+		Name:       "VS Code",
+		TargetPath: "C:\\Users\\Timofey\\AppData\\Roaming\\Code\\User\\settings.json",
+		RepoPath:   "config\\VSCode\\settings.json",
+		IsDir:      false,
+	},
+	{
+		Key:        "komorebi",
+		Name:       "Komorebi",
+		TargetPath: "C:\\Users\\Timofey\\komorebi.json",
+		RepoPath:   "config\\komorebi\\komorebi.json",
+		IsDir:      false,
+	},
+	{
+		Key:        "komorebi_bar",
+		Name:       "Komorebi Bar",
+		TargetPath: "C:\\Users\\Timofey\\komorebi.bar.json",
+		RepoPath:   "config\\komorebi\\komorebi.bar.json",
+		IsDir:      false,
+	},
+	{
+		Key:        "whkd",
+		Name:       "whkd Shortcuts",
+		TargetPath: "C:\\Users\\Timofey\\.config\\whkdrc",
+		RepoPath:   "config\\whkd\\whkdrc",
+		IsDir:      false,
+	},
+	{
+		Key:        "gitconfig",
+		Name:       "Git Config",
+		TargetPath: "C:\\Users\\Timofey\\.gitconfig",
+		RepoPath:   "config\\git\\.gitconfig",
+		IsDir:      false,
+	},
 }
 
 var projectRoot = ""

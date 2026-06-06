@@ -170,6 +170,11 @@ if ($content -match '(?s)--\s*@theme\r?\n(.*?)\r?\n--\s*@theme-end') {
     # 6. Reload GlazeWM config
     & glazewm command wm-reload-config
     Write-Host "Reloaded GlazeWM config."
+
+    # 7. Restart Zebar to apply theme.css immediately
+    Stop-Process -Name "zebar" -Force -ErrorAction SilentlyContinue
+    Start-Process -FilePath "zebar" -WindowStyle Hidden -ErrorAction SilentlyContinue
+    Write-Host "Restarted Zebar."
 } else {
     Write-Warning "Could not find a valid -- @theme block in $weztermPath"
 }

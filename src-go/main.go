@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 )
 
@@ -108,16 +109,13 @@ var configs = []ConfigInfo{
 var projectRoot = ""
 
 func getInfo(c ConfigInfo) ConfigInfo {
-	// Resolve full repo path
 	c.RepoPath = filepath.Join(projectRoot, c.RepoPath)
 
-	// Check repo existence
 	if stat, err := os.Lstat(c.RepoPath); err == nil {
 		c.InRepo = true
 		c.IsDir = stat.IsDir()
 	}
 
-	// Check target existence and symlink status
 	targetStat, err := os.Lstat(c.TargetPath)
 	if err == nil {
 		c.Exists = true
@@ -241,7 +239,6 @@ func handleWriteFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Ensure parent directory in repo exists
 	repoDir := filepath.Dir(info.RepoPath)
 	if err := os.MkdirAll(repoDir, 0755); err != nil {
 		http.Error(w, fmt.Sprintf("Failed to create repo dir: %v", err), http.StatusInternalServerError)
@@ -251,6 +248,11 @@ func handleWriteFile(w http.ResponseWriter, r *http.Request) {
 	if err := os.WriteFile(info.RepoPath, []byte(payload.Content), 0644); err != nil {
 		http.Error(w, fmt.Sprintf("Failed to write file: %v", err), http.StatusInternalServerError)
 		return
+	}
+
+	// Fallback copy: if symlinking is not active, also write to the target on C:
+	if !info.IsSymlink && info.Exists {
+		_ = os.WriteFile(info.TargetPath, []byte(payload.Content), 0644)
 	}
 
 	w.WriteHeader(http.StatusOK)
@@ -301,6 +303,55 @@ func copyDir(src, dst string) error {
 	return nil
 }
 
+func adoptConfigSync(c ConfigInfo) error {
+	info := getInfo(c)
+	if !info.Exists {
+		return fmt.Errorf("source does not exist")
+	}
+	if info.InRepo {
+		return nil
+	}
+
+	repoDir := filepath.Dir(info.RepoPath)
+	if err := os.MkdirAll(repoDir, 0755); err != nil {
+		return err
+	}
+
+	if info.IsDir {
+		return copyDir(info.TargetPath, info.RepoPath)
+	}
+	return copyFile(info.TargetPath, info.RepoPath)
+}
+
+func linkConfigSync(c ConfigInfo) error {
+	info := getInfo(c)
+	if !info.InRepo {
+		return fmt.Errorf("must be in repo before linking")
+	}
+
+	// Try creating symlink/junction natively or via PowerShell
+	var linkErr error
+	if info.IsDir {
+		cmd := exec.Command("powershell", "-Command", fmt.Sprintf("New-Item -ItemType Junction -Path %q -Target %q -Force", info.TargetPath, info.RepoPath))
+		_, linkErr = cmd.CombinedOutput()
+	} else {
+		cmd := exec.Command("powershell", "-Command", fmt.Sprintf("New-Item -ItemType SymbolicLink -Path %q -Target %q -Force", info.TargetPath, info.RepoPath))
+		_, linkErr = cmd.CombinedOutput()
+	}
+
+	// Fallback copy mode if symlinking requires elevation
+	if linkErr != nil {
+		fmt.Printf("Link failed for %s (likely elevation required). Falling back to direct sync-copy.\n", c.Name)
+		if info.IsDir {
+			os.RemoveAll(info.TargetPath)
+			return copyDir(info.RepoPath, info.TargetPath)
+		} else {
+			return copyFile(info.RepoPath, info.TargetPath)
+		}
+	}
+	return nil
+}
+
 func handleAdopt(w http.ResponseWriter, r *http.Request) {
 	enableCors(&w)
 	if r.Method == http.MethodOptions {
@@ -325,35 +376,9 @@ func handleAdopt(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	info := getInfo(*found)
-	if !info.Exists {
-		http.Error(w, "Source file does not exist to adopt", http.StatusBadRequest)
+	if err := adoptConfigSync(*found); err != nil {
+		http.Error(w, fmt.Sprintf("Adopt failed: %v", err), http.StatusInternalServerError)
 		return
-	}
-
-	if info.InRepo {
-		http.Error(w, "Already in repository", http.StatusBadRequest)
-		return
-	}
-
-	// Create repo dir
-	repoDir := filepath.Dir(info.RepoPath)
-	if err := os.MkdirAll(repoDir, 0755); err != nil {
-		http.Error(w, fmt.Sprintf("Failed to create repo dir: %v", err), http.StatusInternalServerError)
-		return
-	}
-
-	// Copy to repo
-	if info.IsDir {
-		if err := copyDir(info.TargetPath, info.RepoPath); err != nil {
-			http.Error(w, fmt.Sprintf("Failed to copy dir: %v", err), http.StatusInternalServerError)
-			return
-		}
-	} else {
-		if err := copyFile(info.TargetPath, info.RepoPath); err != nil {
-			http.Error(w, fmt.Sprintf("Failed to copy file: %v", err), http.StatusInternalServerError)
-			return
-		}
 	}
 
 	w.WriteHeader(http.StatusOK)
@@ -384,52 +409,39 @@ func handleLink(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	info := getInfo(*found)
-	if !info.InRepo {
-		http.Error(w, "Config must be in repo before linking", http.StatusBadRequest)
+	if err := linkConfigSync(*found); err != nil {
+		http.Error(w, fmt.Sprintf("Link failed: %v", err), http.StatusInternalServerError)
 		return
-	}
-
-	// Backup existing active target if it is not already a symlink
-	if info.Exists && !info.IsSymlink {
-		backupPath := info.TargetPath + ".backup"
-		if err := os.Rename(info.TargetPath, backupPath); err != nil {
-			http.Error(w, fmt.Sprintf("Failed to backup existing file: %v", err), http.StatusInternalServerError)
-			return
-		}
-	} else if info.Exists && info.IsSymlink {
-		// Just remove the old symlink
-		if err := os.Remove(info.TargetPath); err != nil {
-			http.Error(w, fmt.Sprintf("Failed to remove old symlink: %v", err), http.StatusInternalServerError)
-			return
-		}
-	}
-
-	// Ensure target parent dir exists
-	targetParent := filepath.Dir(info.TargetPath)
-	if err := os.MkdirAll(targetParent, 0755); err != nil {
-		http.Error(w, fmt.Sprintf("Failed to create target parent dir: %v", err), http.StatusInternalServerError)
-		return
-	}
-
-	// Create symlink
-	err := os.Symlink(info.RepoPath, info.TargetPath)
-	if err != nil {
-		// If native fails, try PowerShell
-		var cmd *exec.Cmd
-		if info.IsDir {
-			cmd = exec.Command("powershell", "-Command", fmt.Sprintf("New-Item -ItemType Junction -Path %q -Target %q -Force", info.TargetPath, info.RepoPath))
-		} else {
-			cmd = exec.Command("powershell", "-Command", fmt.Sprintf("New-Item -ItemType SymbolicLink -Path %q -Target %q -Force", info.TargetPath, info.RepoPath))
-		}
-		if output, err := cmd.CombinedOutput(); err != nil {
-			http.Error(w, fmt.Sprintf("Failed to create symlink: %v\nOutput: %s", err, string(output)), http.StatusInternalServerError)
-			return
-		}
 	}
 
 	w.WriteHeader(http.StatusOK)
 	fmt.Fprint(w, "Linked successfully")
+}
+
+func performAutoAdoptAndLink() {
+	fmt.Println("Starting automatic adopt and link process...")
+	for _, c := range configs {
+		info := getInfo(c)
+		// 1. Adopt if exists on C: but not in repo
+		if info.Exists && !info.InRepo {
+			fmt.Printf("Auto-Adopting configuration: %s...\n", c.Name)
+			if err := adoptConfigSync(c); err != nil {
+				fmt.Printf("Warning: failed to auto-adopt %s: %v\n", c.Name, err)
+			}
+		}
+
+		// Refresh info after possible adopt
+		info = getInfo(c)
+
+		// 2. Link if in repo but not symlinked
+		if info.InRepo && !info.IsSymlink {
+			fmt.Printf("Auto-Linking configuration: %s...\n", c.Name)
+			if err := linkConfigSync(c); err != nil {
+				fmt.Printf("Warning: failed to auto-link %s: %v\n", c.Name, err)
+			}
+		}
+	}
+	fmt.Println("Auto-adopt and link process completed.")
 }
 
 func handleSync(w http.ResponseWriter, r *http.Request) {
@@ -442,7 +454,6 @@ func handleSync(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Run Theme Syncer script
 	syncScript := "C:\\Users\\Timofey\\Theme\\sync_theme.ps1"
 	cmd := exec.Command("powershell", "-ExecutionPolicy", "Bypass", "-File", syncScript)
 	output, err := cmd.CombinedOutput()
@@ -476,16 +487,217 @@ func handleReloadGlazeWM(w http.ResponseWriter, r *http.Request) {
 	w.Write(output)
 }
 
+type ThemeInfo struct {
+	FontFamily      string  `json:"font_family"`
+	FontSize        float64 `json:"font_size"`
+	Opacity         float64 `json:"opacity"`
+	BorderFocused   string  `json:"border_focused"`
+	BorderUnfocused string  `json:"border_unfocused"`
+	BgColor         string  `json:"bg_color"`
+	FgColor         string  `json:"fg_color"`
+	AccentColor     string  `json:"accent_color"`
+	Lavender        string  `json:"lavender"`
+	Lilac           string  `json:"lilac"`
+	LavenderGrey    string  `json:"lavender_grey"`
+	PineBlue        string  `json:"pine_blue"`
+	JungleTeal      string  `json:"jungle_teal"`
+}
+
+func getStringVal(luaBlock, key string, defaultVal string) string {
+	re := regexp.MustCompile(key + `\s*=\s*['"]([^'"]+)['"]`)
+	m := re.FindStringSubmatch(luaBlock)
+	if len(m) > 1 {
+		return m[1]
+	}
+	return defaultVal
+}
+
+func getFloatVal(luaBlock, key string, defaultVal float64) float64 {
+	re := regexp.MustCompile(key + `\s*=\s*([\d\.]+)`)
+	m := re.FindStringSubmatch(luaBlock)
+	if len(m) > 1 {
+		var v float64
+		fmt.Sscanf(m[1], "%f", &v)
+		return v
+	}
+	return defaultVal
+}
+
+func handleGetTheme(w http.ResponseWriter, r *http.Request) {
+	enableCors(&w)
+	if r.Method == http.MethodOptions {
+		return
+	}
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	weztermConfig := getInfo(configs[0])
+	defaultTheme := ThemeInfo{
+		FontFamily:      "JetBrains Mono",
+		FontSize:        14.0,
+		Opacity:         0.85,
+		BorderFocused:   "#2b6f7c",
+		BorderUnfocused: "#b2a9a5",
+		BgColor:         "#f0edec",
+		FgColor:         "#2c363c",
+		AccentColor:     "#cbd9e3",
+		Lavender:        "#dfd9e2",
+		Lilac:           "#c3acce",
+		LavenderGrey:    "#89909f",
+		PineBlue:        "#538083",
+		JungleTeal:      "#2a7f62",
+	}
+
+	if !weztermConfig.InRepo {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(defaultTheme)
+		return
+	}
+
+	luaBytes, err := os.ReadFile(weztermConfig.RepoPath)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to read WezTerm lua: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	luaContent := string(luaBytes)
+	re := regexp.MustCompile(`(?s)--\s*@theme\r?\n(.*?)\r?\n--\s*@theme-end`)
+	m := re.FindStringSubmatch(luaContent)
+	if len(m) < 2 {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(defaultTheme)
+		return
+	}
+
+	themeBlock := m[1]
+	theme := ThemeInfo{
+		FontFamily:      getStringVal(themeBlock, "font_family", defaultTheme.FontFamily),
+		FontSize:        getFloatVal(themeBlock, "font_size", defaultTheme.FontSize),
+		Opacity:         getFloatVal(themeBlock, "opacity", defaultTheme.Opacity),
+		BorderFocused:   getStringVal(themeBlock, "border_focused", defaultTheme.BorderFocused),
+		BorderUnfocused: getStringVal(themeBlock, "border_unfocused", defaultTheme.BorderUnfocused),
+		BgColor:         getStringVal(themeBlock, "bg_color", defaultTheme.BgColor),
+		FgColor:         getStringVal(themeBlock, "fg_color", defaultTheme.FgColor),
+		AccentColor:     getStringVal(themeBlock, "accent_color", defaultTheme.AccentColor),
+		Lavender:        getStringVal(themeBlock, "lavender", defaultTheme.Lavender),
+		Lilac:           getStringVal(themeBlock, "lilac", defaultTheme.Lilac),
+		LavenderGrey:    getStringVal(themeBlock, "lavender_grey", defaultTheme.LavenderGrey),
+		PineBlue:        getStringVal(themeBlock, "pine_blue", defaultTheme.PineBlue),
+		JungleTeal:      getStringVal(themeBlock, "jungle_teal", defaultTheme.JungleTeal),
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(theme)
+}
+
+func handleSaveTheme(w http.ResponseWriter, r *http.Request) {
+	enableCors(&w)
+	if r.Method == http.MethodOptions {
+		return
+	}
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var theme ThemeInfo
+	if err := json.NewDecoder(r.Body).Decode(&theme); err != nil {
+		http.Error(w, "Invalid payload", http.StatusBadRequest)
+		return
+	}
+
+	weztermConfig := getInfo(configs[0])
+	if !weztermConfig.InRepo {
+		http.Error(w, "WezTerm config must be adopted first", http.StatusBadRequest)
+		return
+	}
+
+	luaBytes, err := os.ReadFile(weztermConfig.RepoPath)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to read WezTerm config: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	luaContent := string(luaBytes)
+
+	newThemeBlock := fmt.Sprintf(`-- @theme
+local theme = {
+  color_scheme = 'zenbones',
+  font_family = '%s',
+  font_size = %.1f,
+  opacity = %.2f,
+  border_focused = '%s',
+  border_unfocused = '%s',
+  bg_color = '%s',
+  fg_color = '%s',
+  accent_color = '%s',
+  lavender = '%s',
+  lilac = '%s',
+  lavender_grey = '%s',
+  pine_blue = '%s',
+  jungle_teal = '%s',
+}
+-- @theme-end`,
+		theme.FontFamily,
+		theme.FontSize,
+		theme.Opacity,
+		theme.BorderFocused,
+		theme.BorderUnfocused,
+		theme.BgColor,
+		theme.FgColor,
+		theme.AccentColor,
+		theme.Lavender,
+		theme.Lilac,
+		theme.LavenderGrey,
+		theme.PineBlue,
+		theme.JungleTeal,
+	)
+
+	re := regexp.MustCompile(`(?s)--\s*@theme\r?\n.*?\r?\n--\s*@theme-end`)
+	updatedLua := re.ReplaceAllString(luaContent, newThemeBlock)
+
+	if err := os.WriteFile(weztermConfig.RepoPath, []byte(updatedLua), 0644); err != nil {
+		http.Error(w, fmt.Sprintf("Failed to write WezTerm lua: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	// Fallback copy for WezTerm active path if it is not linked as a symlink
+	if !weztermConfig.IsSymlink && weztermConfig.Exists {
+		_ = os.WriteFile(weztermConfig.TargetPath, []byte(updatedLua), 0644)
+	}
+
+	syncScript := "C:\\Users\\Timofey\\Theme\\sync_theme.ps1"
+	cmd := exec.Command("powershell", "-ExecutionPolicy", "Bypass", "-File", syncScript)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to sync theme: %v\nOutput: %s", err, string(output)), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write(output)
+}
+
 func main() {
 	port := flag.Int("port", 54321, "Port to run the backend on")
 	flag.Parse()
 
-	// Locate project root
 	var err error
 	projectRoot, err = os.Getwd()
 	if err != nil {
 		log.Fatalf("Failed to get working directory: %v", err)
 	}
+	if filepath.Base(projectRoot) == "src-go" {
+		projectRoot = filepath.Dir(projectRoot)
+	}
+
+	if runtime.GOOS == "windows" {
+		os.MkdirAll(filepath.Join(projectRoot, "config"), 0755)
+	}
+
+	performAutoAdoptAndLink()
 
 	http.HandleFunc("/api/status", handleStatus)
 	http.HandleFunc("/api/file", handleReadFile)
@@ -494,13 +706,11 @@ func main() {
 	http.HandleFunc("/api/action/link", handleLink)
 	http.HandleFunc("/api/action/sync", handleSync)
 	http.HandleFunc("/api/action/reload-glazewm", handleReloadGlazeWM)
+	http.HandleFunc("/api/theme", handleGetTheme)
+	http.HandleFunc("/api/theme/save", handleSaveTheme)
 
 	addr := fmt.Sprintf("127.0.0.1:%d", *port)
 	fmt.Printf("WinRice Backend starting on http://%s\n", addr)
-	
-	if runtime.GOOS == "windows" {
-		os.MkdirAll(filepath.Join(projectRoot, "config"), 0755)
-	}
 
 	if err := http.ListenAndServe(addr, nil); err != nil {
 		log.Fatalf("Server failed: %v", err)

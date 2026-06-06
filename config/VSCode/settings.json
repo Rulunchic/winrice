@@ -1,0 +1,10 @@
+{
+    "editor.unicodeHighlight.nonBasicASCII": false,
+    "workbench.secondarySideBar.defaultVisibility": "hidden",
+    "javascript.updateImportsOnFileMove.enabled": "always",
+    "python.defaultInterpreterPath": "C:\\Users\\Timofey\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+    "git.autofetch": true,
+    "git.enableSmartCommit": true,
+    "git.confirmSync": false,
+    "security.workspace.trust.untrustedFiles": "open"
+}

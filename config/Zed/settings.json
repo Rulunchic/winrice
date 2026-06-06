@@ -1,0 +1,59 @@
+// Zed settings
+//
+// For information on how to configure Zed, see the Zed
+// documentation: https://zed.dev/docs/configuring-zed
+//
+// To see all of Zed's default settings without changing your
+// custom settings, run `zed: open default settings` from the
+// command palette (cmd-shift-p / ctrl-shift-p)
+{
+  "buffer_line_height": "standard",
+  "buffer_font_family": "JetBrainsMono Nerd Font",
+  "project_panel": {
+    "dock": "left"
+  },
+  "cli_default_open_behavior": "existing_window",
+  "agent": {
+    "default_profile": "ask",
+    "default_model": {
+      "provider": "google",
+      "model": "gemini-3.1-pro-preview",
+      "enable_thinking": true
+    },
+    "favorite_models": [],
+    "model_parameters": []
+  },
+  "telemetry": {
+    "diagnostics": false,
+    "metrics": false
+  },
+  "session": {
+    "trust_all_worktrees": true
+  },
+  "icon_theme": {
+    "mode": "dark",
+    "light": "Zed (Default)",
+    "dark": "Zed (Default)"
+  },
+  "agent_servers": {
+    "codex-acp": {
+      "type": "registry"
+    }
+  },
+  "base_keymap": "VSCode",
+  "ui_font_size": 16,
+  "buffer_font_size": 16.0,
+  "buffer_font_features": {
+    "liga": 0,
+    "calt": 0,
+    "clig": 0
+  },
+  "terminal": {
+    "font_size": 14
+  },
+  "theme": {
+    "mode": "light",
+    "light": "Zenbones Light",
+    "dark": "Zenbones Light"
+  }
+}

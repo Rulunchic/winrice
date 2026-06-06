@@ -1,0 +1,107 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap');
+@import 'theme.css';
+
+:root {
+  --text-size: var(--font-size, 13px);
+  --text-color: var(--fg-color, #2c363c);
+  --background-color: var(--bg-color, rgba(240, 237, 236, 0.85));
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  font-family: var(--font-family), monospace;
+  font-size: var(--text-size);
+  color: var(--text-color);
+  overflow: hidden;
+}
+
+#root {
+  background: var(--background-color);
+  border-bottom: none; 
+  backdrop-filter: blur(10px);
+}
+
+.app {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  height: 100%;
+  padding: 0 16px;
+}
+
+.left {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+/* Workspaces styling - ASCII style pure symbols */
+.workspaces {
+  display: flex;
+  gap: 8px; /* space between workspace symbols */
+  align-items: center;
+}
+
+.workspace {
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0;
+  color: var(--text-color);
+  font-family: var(--font-family), monospace;
+  font-size: var(--text-size);
+  font-weight: 500;
+  cursor: pointer;
+  outline: none;
+  opacity: 0.7; /* dim inactive workspaces */
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.15s ease, color 0.15s ease;
+}
+
+.workspace:hover {
+  opacity: 0.9;
+}
+
+.workspace.focused {
+  opacity: 1;
+  font-weight: bold;
+}
+
+/* Date and Time styling */
+.date-time {
+  font-family: var(--font-family), monospace;
+  font-size: var(--text-size);
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: var(--text-color);
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}

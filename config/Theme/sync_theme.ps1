@@ -1,6 +1,6 @@
-$weztermPath = "C:\Users\Timofey\.wezterm.lua"
-$glazewmPath = "C:\Users\Timofey\.glzr\glazewm\config.yaml"
-$zebarThemePath = "C:\Users\Timofey\.glzr\zebar\custom-mei\theme.css"
+$weztermPath = Join-Path $HOME ".wezterm.lua"
+$glazewmPath = Join-Path $HOME ".glzr\glazewm\config.yaml"
+$zebarThemePath = Join-Path $HOME ".glzr\zebar\custom-mei\theme.css"
 
 if (!(Test-Path $weztermPath)) {
     Write-Error "WezTerm configuration not found at $weztermPath"
@@ -121,7 +121,7 @@ if ($content -match '(?s)--\s*@theme\r?\n(.*?)\r?\n--\s*@theme-end') {
     }
 
     # 4. Update VS Code theme in settings.json
-    $vscodePath = "C:\Users\Timofey\AppData\Roaming\Code\User\settings.json"
+    $vscodePath = Join-Path $env:APPDATA "Code\User\settings.json"
     if (Test-Path $vscodePath) {
         try {
             $vscodeJson = Get-Content $vscodePath -Raw | ConvertFrom-Json
@@ -142,7 +142,7 @@ if ($content -match '(?s)--\s*@theme\r?\n(.*?)\r?\n--\s*@theme-end') {
     }
 
     # 5. Update Zed Editor theme in settings.json
-    $zedPath = "C:\Users\Timofey\AppData\Roaming\Zed\settings.json"
+    $zedPath = Join-Path $env:APPDATA "Zed\settings.json"
     if (Test-Path $zedPath) {
         try {
             $zedJson = Get-Content $zedPath -Raw | ConvertFrom-Json
@@ -173,7 +173,8 @@ if ($content -match '(?s)--\s*@theme\r?\n(.*?)\r?\n--\s*@theme-end') {
 
     # 7. Restart Zebar to apply theme.css immediately
     Stop-Process -Name "zebar" -Force -ErrorAction SilentlyContinue
-    Start-Process -FilePath "zebar" -WindowStyle Hidden -ErrorAction SilentlyContinue
+    $wshell = New-Object -ComObject Wscript.Shell
+    $wshell.Run("zebar", 0, $false)
     Write-Host "Restarted Zebar."
 } else {
     Write-Warning "Could not find a valid -- @theme block in $weztermPath"

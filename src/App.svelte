@@ -297,6 +297,7 @@
       setTimeout(() => { if (statusMsg.includes('saved')) statusMsg = ''; }, 2000);
     } catch (e) {
       statusMsg = `Theme save failed: ${e}`;
+      alert(`Theme save failed: ${e}`);
     } finally {
       isLoading = false;
     }
@@ -441,6 +442,7 @@
       parseConfigToParams(key, rawContent);
     } catch (e) {
       statusMsg = `Failed to load: ${e}`;
+      alert(`Failed to load config file: ${e}`);
     }
   }
 
@@ -500,6 +502,7 @@
       setTimeout(() => { if (statusMsg === 'Configuration saved') statusMsg = ''; }, 2000);
     } catch (e) {
       statusMsg = `Save failed: ${e}`;
+      alert(`Failed to save config: ${e}`);
     }
   }
 
@@ -511,6 +514,7 @@
       statusMsg = 'Theme sync complete';
     } catch (e) {
       statusMsg = `Sync failed: ${e}`;
+      alert(`Theme sync failed: ${e}`);
     } finally {
       isLoading = false;
     }
@@ -524,6 +528,7 @@
       statusMsg = 'GlazeWM config reloaded';
     } catch (e) {
       statusMsg = `Reload failed: ${e}`;
+      alert(`GlazeWM reload failed: ${e}`);
     } finally {
       isLoading = false;
     }
@@ -563,6 +568,7 @@
       setTimeout(() => { if (statusMsg.includes('Deleted')) statusMsg = ''; }, 2000);
     } catch (e) {
       statusMsg = `Error deleting: ${e}`;
+      alert(`Failed to delete custom theme: ${e}`);
     }
   }
 
@@ -591,6 +597,7 @@
       setTimeout(() => { if (statusMsg.includes('Saved')) statusMsg = ''; }, 2000);
     } catch (e) {
       statusMsg = `Save failed: ${e}`;
+      alert(`Failed to save custom preset: ${e}`);
     }
   }
 

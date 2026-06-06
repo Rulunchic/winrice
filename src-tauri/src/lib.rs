@@ -47,12 +47,52 @@ pub struct CustomPreset {
     pub jungle_teal: String,
 }
 
+fn get_home_dir() -> std::path::PathBuf {
+    dirs::home_dir().unwrap_or_else(|| {
+        std::env::var("USERPROFILE")
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|_| std::path::PathBuf::from("C:\\Users\\Default"))
+    })
+}
+
+fn get_appdata_dir() -> std::path::PathBuf {
+    dirs::config_dir().unwrap_or_else(|| {
+        std::env::var("APPDATA")
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|_| get_home_dir().join("AppData").join("Roaming"))
+    })
+}
+
+fn find_pinterest_collage_config() -> String {
+    let home = get_home_dir();
+    let appdata = get_appdata_dir();
+    
+    let candidates = [
+        appdata.join("pinterest-collage").join("config.json"),
+        std::path::PathBuf::from("E:\\Dev\\projects\\pinterest-collage\\config.json"),
+        home.join("Dev").join("projects").join("pinterest-collage").join("config.json"),
+        home.join("projects").join("pinterest-collage").join("config.json"),
+    ];
+
+    for path in &candidates {
+        if path.exists() {
+            return path.to_string_lossy().to_string();
+        }
+    }
+
+    // Default fallback
+    candidates[0].to_string_lossy().to_string()
+}
+
 fn get_configs_definition() -> Vec<ConfigInfo> {
+    let home = get_home_dir();
+    let appdata = get_appdata_dir();
+    
     vec![
         ConfigInfo {
             key: "wezterm".to_string(),
             name: "WezTerm".to_string(),
-            target_path: "C:\\Users\\Timofey\\.wezterm.lua".to_string(),
+            target_path: home.join(".wezterm.lua").to_string_lossy().to_string(),
             repo_path: "config\\wezterm\\.wezterm.lua".to_string(),
             exists: false,
             in_repo: false,
@@ -64,7 +104,7 @@ fn get_configs_definition() -> Vec<ConfigInfo> {
         ConfigInfo {
             key: "glazewm".to_string(),
             name: "GlazeWM".to_string(),
-            target_path: "C:\\Users\\Timofey\\.glzr\\glazewm\\config.yaml".to_string(),
+            target_path: home.join(".glzr").join("glazewm").join("config.yaml").to_string_lossy().to_string(),
             repo_path: "config\\glazewm\\config.yaml".to_string(),
             exists: false,
             in_repo: false,
@@ -76,7 +116,7 @@ fn get_configs_definition() -> Vec<ConfigInfo> {
         ConfigInfo {
             key: "zebar".to_string(),
             name: "Zebar Directory".to_string(),
-            target_path: "C:\\Users\\Timofey\\.glzr\\zebar".to_string(),
+            target_path: home.join(".glzr").join("zebar").to_string_lossy().to_string(),
             repo_path: "config\\zebar".to_string(),
             exists: false,
             in_repo: false,
@@ -88,7 +128,7 @@ fn get_configs_definition() -> Vec<ConfigInfo> {
         ConfigInfo {
             key: "zebar_settings".to_string(),
             name: "Zebar Settings".to_string(),
-            target_path: "C:\\Users\\Timofey\\.glzr\\zebar\\settings.json".to_string(),
+            target_path: home.join(".glzr").join("zebar").join("settings.json").to_string_lossy().to_string(),
             repo_path: "config\\zebar\\settings.json".to_string(),
             exists: false,
             in_repo: false,
@@ -100,7 +140,7 @@ fn get_configs_definition() -> Vec<ConfigInfo> {
         ConfigInfo {
             key: "zebar_zpack".to_string(),
             name: "Zebar Layout (zpack)".to_string(),
-            target_path: "C:\\Users\\Timofey\\.glzr\\zebar\\custom-mei\\zpack.json".to_string(),
+            target_path: home.join(".glzr").join("zebar").join("custom-mei").join("zpack.json").to_string_lossy().to_string(),
             repo_path: "config\\zebar\\custom-mei\\zpack.json".to_string(),
             exists: false,
             in_repo: false,
@@ -112,7 +152,7 @@ fn get_configs_definition() -> Vec<ConfigInfo> {
         ConfigInfo {
             key: "fastfetch".to_string(),
             name: "Fastfetch".to_string(),
-            target_path: "C:\\Users\\Timofey\\AppData\\Roaming\\fastfetch\\config.jsonc".to_string(),
+            target_path: appdata.join("fastfetch").join("config.jsonc").to_string_lossy().to_string(),
             repo_path: "config\\fastfetch\\config.jsonc".to_string(),
             exists: false,
             in_repo: false,
@@ -124,7 +164,7 @@ fn get_configs_definition() -> Vec<ConfigInfo> {
         ConfigInfo {
             key: "sync_script".to_string(),
             name: "Theme Syncer".to_string(),
-            target_path: "C:\\Users\\Timofey\\Theme\\sync_theme.ps1".to_string(),
+            target_path: home.join("Theme").join("sync_theme.ps1").to_string_lossy().to_string(),
             repo_path: "config\\Theme\\sync_theme.ps1".to_string(),
             exists: false,
             in_repo: false,
@@ -136,7 +176,7 @@ fn get_configs_definition() -> Vec<ConfigInfo> {
         ConfigInfo {
             key: "zed".to_string(),
             name: "Zed Editor".to_string(),
-            target_path: "C:\\Users\\Timofey\\AppData\\Roaming\\Zed\\settings.json".to_string(),
+            target_path: appdata.join("Zed").join("settings.json").to_string_lossy().to_string(),
             repo_path: "config\\Zed\\settings.json".to_string(),
             exists: false,
             in_repo: false,
@@ -148,7 +188,7 @@ fn get_configs_definition() -> Vec<ConfigInfo> {
         ConfigInfo {
             key: "vscode".to_string(),
             name: "VS Code".to_string(),
-            target_path: "C:\\Users\\Timofey\\AppData\\Roaming\\Code\\User\\settings.json".to_string(),
+            target_path: appdata.join("Code").join("User").join("settings.json").to_string_lossy().to_string(),
             repo_path: "config\\VSCode\\settings.json".to_string(),
             exists: false,
             in_repo: false,
@@ -160,7 +200,7 @@ fn get_configs_definition() -> Vec<ConfigInfo> {
         ConfigInfo {
             key: "komorebi".to_string(),
             name: "Komorebi".to_string(),
-            target_path: "C:\\Users\\Timofey\\komorebi.json".to_string(),
+            target_path: home.join("komorebi.json").to_string_lossy().to_string(),
             repo_path: "config\\komorebi\\komorebi.json".to_string(),
             exists: false,
             in_repo: false,
@@ -172,7 +212,7 @@ fn get_configs_definition() -> Vec<ConfigInfo> {
         ConfigInfo {
             key: "komorebi_bar".to_string(),
             name: "Komorebi Bar".to_string(),
-            target_path: "C:\\Users\\Timofey\\komorebi.bar.json".to_string(),
+            target_path: home.join("komorebi.bar.json").to_string_lossy().to_string(),
             repo_path: "config\\komorebi\\komorebi.bar.json".to_string(),
             exists: false,
             in_repo: false,
@@ -184,7 +224,7 @@ fn get_configs_definition() -> Vec<ConfigInfo> {
         ConfigInfo {
             key: "whkd".to_string(),
             name: "whkd Shortcuts".to_string(),
-            target_path: "C:\\Users\\Timofey\\.config\\whkdrc".to_string(),
+            target_path: home.join(".config").join("whkdrc").to_string_lossy().to_string(),
             repo_path: "config\\whkd\\whkdrc".to_string(),
             exists: false,
             in_repo: false,
@@ -196,7 +236,7 @@ fn get_configs_definition() -> Vec<ConfigInfo> {
         ConfigInfo {
             key: "gitconfig".to_string(),
             name: "Git Config".to_string(),
-            target_path: "C:\\Users\\Timofey\\.gitconfig".to_string(),
+            target_path: home.join(".gitconfig").to_string_lossy().to_string(),
             repo_path: "config\\git\\.gitconfig".to_string(),
             exists: false,
             in_repo: false,
@@ -208,7 +248,7 @@ fn get_configs_definition() -> Vec<ConfigInfo> {
         ConfigInfo {
             key: "pinterest_collage".to_string(),
             name: "Pinterest Wallpaper".to_string(),
-            target_path: "E:\\Dev\\projects\\pinterest-collage\\config.json".to_string(),
+            target_path: find_pinterest_collage_config(),
             repo_path: "config\\pinterest-collage\\config.json".to_string(),
             exists: false,
             in_repo: false,
@@ -221,16 +261,33 @@ fn get_configs_definition() -> Vec<ConfigInfo> {
 }
 
 fn get_project_root() -> std::path::PathBuf {
-    let hardcoded = std::path::PathBuf::from("E:\\Dev\\projects\\winrice");
-    if hardcoded.exists() {
-        return hardcoded;
+    if let Ok(mut dir) = std::env::current_dir() {
+        if dir.ends_with("src-tauri") {
+            dir.pop();
+        }
+        if dir.join("src-tauri").exists() || dir.join("config").exists() {
+            return dir;
+        }
     }
-    
-    let mut dir = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
-    if dir.ends_with("src-tauri") {
-        dir.pop();
+
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(exe_dir) = exe_path.parent() {
+            let mut dir = exe_dir.to_path_buf();
+            while dir.pop() {
+                if dir.join("src-tauri").exists() {
+                    return dir;
+                }
+            }
+            return exe_dir.to_path_buf();
+        }
     }
-    dir
+
+    let dev_path = std::path::PathBuf::from("E:\\Dev\\projects\\winrice");
+    if dev_path.exists() {
+        dev_path
+    } else {
+        std::path::PathBuf::from(".")
+    }
 }
 
 fn get_info(mut config: ConfigInfo, project_root: &std::path::Path) -> ConfigInfo {
@@ -541,9 +598,10 @@ fn link_config(key: String) -> Result<(), String> {
 
 #[tauri::command]
 fn run_sync() -> Result<String, String> {
-    let sync_script = "C:\\Users\\Timofey\\Theme\\sync_theme.ps1";
+    let sync_script_path = get_home_dir().join("Theme").join("sync_theme.ps1");
+    let sync_script = sync_script_path.to_string_lossy();
     let output = Command::new("powershell")
-        .args(["-ExecutionPolicy", "Bypass", "-File", sync_script])
+        .args(["-ExecutionPolicy", "Bypass", "-File", &sync_script])
         .output()
         .map_err(|e| format!("Failed to run sync: {}", e))?;
 

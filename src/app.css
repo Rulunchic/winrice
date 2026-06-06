@@ -1,0 +1,37 @@
+@import './theme.css';
+
+/* Reset */
+*, *::before, *::after { box-sizing: border-box; }
+* { margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  font-family: var(--font-mono, 'JetBrains Mono'), 'Cascadia Code', 'Consolas', monospace;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--fg);
+  background: var(--bg-base);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Headings inherit monospace, no sans */
+h1, h2, h3 {
+  font-family: inherit;
+  font-weight: 600;
+  color: var(--fg);
+}
+h1 { font-size: 1.25rem; }
+h2 { font-size: 1.1rem; }
+h3 { font-size: 1rem; font-weight: 500; }
+
+/* Default form controls */
+button, input, textarea, select {
+  font: inherit;
+  font-size: 0.875rem;
+}
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; text-underline-offset: 2px; }
+
+code, pre {
+  font-family: inherit;
+}

@@ -1,5 +1,7 @@
 # winrice
 
+![WinRice Preview](preview.png)
+
 Desktop Rice Manager for Windows 11 (GlazeWM, Zebar, WezTerm, Fastfetch) built using Svelte 5, Go, and Tauri v2.
 
 Follows the G2G (geek-to-geek) minimalist design philosophy with a Zenbones Sand theme.

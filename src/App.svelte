@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, untrack } from 'svelte';
+  import { invoke } from '@tauri-apps/api/core';
 
   interface ConfigInfo {
     key: string;
@@ -258,14 +259,9 @@
 
   async function fetchStatus() {
     try {
-      const res = await fetch('/api/status');
-      if (res.ok) {
-        configs = await res.json();
-        if (!selectedKey && configs.length > 0) {
-          selectedKey = configs[0].key;
-        }
-      } else {
-        statusMsg = 'Error fetching config status';
+      configs = await invoke<ConfigInfo[]>('get_status');
+      if (!selectedKey && configs.length > 0) {
+        selectedKey = configs[0].key;
       }
     } catch (e) {
       statusMsg = `Connection failed: ${e}`;
@@ -274,10 +270,7 @@
 
   async function fetchTheme() {
     try {
-      const res = await fetch('/api/theme');
-      if (res.ok) {
-        theme = await res.json();
-      }
+      theme = await invoke<ThemeInfo>('get_theme');
     } catch (e) {
       statusMsg = `Failed to fetch theme: ${e}`;
     }
@@ -287,18 +280,9 @@
     isLoading = true;
     statusMsg = 'Saving and syncing theme...';
     try {
-      const res = await fetch('/api/theme/save', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(theme)
-      });
-      const output = await res.text();
-      if (res.ok) {
-        statusMsg = 'Theme saved and applied globally';
-        setTimeout(() => { if (statusMsg.includes('saved')) statusMsg = ''; }, 2000);
-      } else {
-        statusMsg = `Theme save failed: ${output}`;
-      }
+      await invoke('save_theme', { theme });
+      statusMsg = 'Theme saved and applied globally';
+      setTimeout(() => { if (statusMsg.includes('saved')) statusMsg = ''; }, 2000);
     } catch (e) {
       statusMsg = `Theme save failed: ${e}`;
     } finally {
@@ -441,13 +425,8 @@
     if (!config || config.isDir || !config.inRepo) return;
 
     try {
-      const res = await fetch(`/api/file?key=${key}`);
-      if (res.ok) {
-        rawContent = await res.text();
-        parseConfigToParams(key, rawContent);
-      } else {
-        statusMsg = 'Failed to load file content';
-      }
+      rawContent = await invoke<string>('read_config_file', { key });
+      parseConfigToParams(key, rawContent);
     } catch (e) {
       statusMsg = `Failed to load: ${e}`;
     }
@@ -502,20 +481,11 @@
     }
 
     try {
-      const res = await fetch('/api/file/write', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key: selectedKey, content: contentToSave })
-      });
-      if (res.ok) {
-        statusMsg = 'Configuration saved';
-        rawContent = contentToSave;
-        parseConfigToParams(selectedKey, rawContent); // reload
-        setTimeout(() => { if (statusMsg === 'Configuration saved') statusMsg = ''; }, 2000);
-      } else {
-        const err = await res.text();
-        statusMsg = `Save failed: ${err}`;
-      }
+      await invoke('write_config_file', { key: selectedKey, content: contentToSave });
+      statusMsg = 'Configuration saved';
+      rawContent = contentToSave;
+      parseConfigToParams(selectedKey, rawContent); // reload
+      setTimeout(() => { if (statusMsg === 'Configuration saved') statusMsg = ''; }, 2000);
     } catch (e) {
       statusMsg = `Save failed: ${e}`;
     }
@@ -525,13 +495,8 @@
     isLoading = true;
     statusMsg = 'Syncing theme...';
     try {
-      const res = await fetch('/api/action/sync', { method: 'POST' });
-      const output = await res.text();
-      if (res.ok) {
-        statusMsg = 'Theme sync complete';
-      } else {
-        statusMsg = `Sync failed: ${output}`;
-      }
+      await invoke('run_sync');
+      statusMsg = 'Theme sync complete';
     } catch (e) {
       statusMsg = `Sync failed: ${e}`;
     } finally {
@@ -543,13 +508,8 @@
     isLoading = true;
     statusMsg = 'Reloading GlazeWM...';
     try {
-      const res = await fetch('/api/action/reload-glazewm', { method: 'POST' });
-      const output = await res.text();
-      if (res.ok) {
-        statusMsg = 'GlazeWM config reloaded';
-      } else {
-        statusMsg = `Reload failed: ${output}`;
-      }
+      await invoke('reload_glazewm');
+      statusMsg = 'GlazeWM config reloaded';
     } catch (e) {
       statusMsg = `Reload failed: ${e}`;
     } finally {
@@ -559,10 +519,7 @@
 
   async function fetchCustomPresets() {
     try {
-      const res = await fetch('/api/theme/presets');
-      if (res.ok) {
-        customPresets = await res.json();
-      }
+      customPresets = await invoke<any[]>('get_presets');
     } catch (e) {
       console.warn('Failed to fetch custom presets:', e);
     }
@@ -588,18 +545,10 @@
   async function deleteCustomPreset(name: string) {
     if (!confirm(`Are you sure you want to delete custom theme "${name}"?`)) return;
     try {
-      const res = await fetch('/api/theme/presets/delete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name })
-      });
-      if (res.ok) {
-        statusMsg = `Deleted custom theme "${name}"`;
-        await fetchCustomPresets();
-        setTimeout(() => { if (statusMsg.includes('Deleted')) statusMsg = ''; }, 2000);
-      } else {
-        statusMsg = 'Failed to delete theme preset';
-      }
+      await invoke('delete_preset', { name });
+      statusMsg = `Deleted custom theme "${name}"`;
+      await fetchCustomPresets();
+      setTimeout(() => { if (statusMsg.includes('Deleted')) statusMsg = ''; }, 2000);
     } catch (e) {
       statusMsg = `Error deleting: ${e}`;
     }
@@ -609,7 +558,7 @@
     const name = prompt('Enter a name for your custom theme:');
     if (!name || !name.trim()) return;
     
-    const payload = {
+    const preset = {
       name: name.trim(),
       bg_color: theme.bg_color,
       fg_color: theme.fg_color,
@@ -624,19 +573,10 @@
     };
 
     try {
-      const res = await fetch('/api/theme/presets/save', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      if (res.ok) {
-        statusMsg = `Saved custom theme "${name}"`;
-        await fetchCustomPresets();
-        setTimeout(() => { if (statusMsg.includes('Saved')) statusMsg = ''; }, 2000);
-      } else {
-        const txt = await res.text();
-        statusMsg = `Save failed: ${txt}`;
-      }
+      await invoke('save_preset', { preset });
+      statusMsg = `Saved custom theme "${name}"`;
+      await fetchCustomPresets();
+      setTimeout(() => { if (statusMsg.includes('Saved')) statusMsg = ''; }, 2000);
     } catch (e) {
       statusMsg = `Save failed: ${e}`;
     }
@@ -965,7 +905,7 @@
   <footer class="footer panel">
     <div class="status-bar">
       <span>Status: {statusMsg || 'Idle'}</span>
-      <span>API: http://127.0.0.1:54321</span>
+      <span>API: Tauri IPC (Native)</span>
     </div>
   </footer>
 </div>

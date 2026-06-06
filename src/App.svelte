@@ -2,6 +2,28 @@
   import { onMount, untrack } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
 
+  function hexToRgb(hex: string): string {
+    const cleanHex = (hex || '#f0edec').replace('#', '');
+    const num = parseInt(cleanHex, 16);
+    const r = (num >> 16) & 255;
+    const g = (num >> 8) & 255;
+    const b = num & 255;
+    return `${r}, ${g}, ${b}`;
+  }
+
+  function adjustColorLightness(hex: string, percent: number): string {
+    const cleanHex = (hex || '#f0edec').replace("#","");
+    let num = parseInt(cleanHex, 16),
+        amt = Math.round(2.55 * percent),
+        R = (num >> 16) + amt,
+        G = (num >> 8 & 0x00FF) + amt,
+        B = (num & 0x0000FF) + amt;
+    return "#" + (0x1000000 + (R<255?R<0?0:R:255)*0x10000 + (G<255?G<0?0:G:255)*0x100 + (B<255?B<0?0:B:255)).toString(16).slice(1);
+  }
+
+  let isInitializing = $state<boolean>(true);
+  let initStage = $state<string>('Initializing WinRice...');
+
   interface ConfigInfo {
     key: string;
     name: string;
@@ -601,10 +623,30 @@
     }
   }
 
+  $effect(() => {
+    // Dynamic theme applying to the Svelte app itself
+    const root = document.documentElement;
+    root.style.setProperty('--bg-base', theme.bg_color);
+    root.style.setProperty('--bg-panel', adjustColorLightness(theme.bg_color, -4));
+    root.style.setProperty('--fg', theme.fg_color);
+    root.style.setProperty('--accent', theme.border_focused);
+    root.style.setProperty('--border', `rgba(${hexToRgb(theme.fg_color)}, 0.18)`);
+    root.style.setProperty('--font-mono', `'${theme.font_family}', monospace`);
+  });
+
   onMount(async () => {
-    await fetchStatus();
-    await fetchTheme();
-    await fetchCustomPresets();
+    try {
+      initStage = 'Loading configurations...';
+      await fetchStatus();
+      initStage = 'Loading global theme settings...';
+      await fetchTheme();
+      initStage = 'Loading custom presets...';
+      await fetchCustomPresets();
+    } catch (e) {
+      console.error('Initialization error:', e);
+    } finally {
+      isInitializing = false;
+    }
     const interval = setInterval(fetchStatus, 5000);
     return () => clearInterval(interval);
   });
@@ -617,6 +659,16 @@
     }
   });
 </script>
+
+{#if isInitializing}
+  <div class="loading-overlay" style="background: {theme.bg_color}">
+    <div class="loading-box">
+      <div class="loading-spinner" style="border-top-color: {theme.border_focused}"></div>
+      <div class="loading-title" style="color: {theme.border_focused}">WinRice Manager</div>
+      <div class="loading-stage" style="color: {theme.fg_color}">{initStage}</div>
+    </div>
+  </div>
+{/if}
 
 <div class="layout">
   <!-- Top Bar -->
@@ -938,6 +990,54 @@
     padding: 12px;
     gap: 8px;
     background: var(--bg-base);
+  }
+
+  .loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    font-family: var(--font-mono);
+  }
+
+  .loading-box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid rgba(0, 0, 0, 0.08);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  .loading-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+
+  .loading-stage {
+    font-size: 0.85rem;
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 0.6; }
+    50% { opacity: 1; }
   }
 
   .header {

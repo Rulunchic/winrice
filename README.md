@@ -2,64 +2,59 @@
 
 ![WinRice Preview](preview.png)
 
-Desktop Rice Manager for Windows 11 (GlazeWM, Zebar, WezTerm, Fastfetch) built using Svelte 5, Go, and Tauri v2.
+Desktop Rice Manager for Windows 11 (GlazeWM, Zebar, WezTerm, Fastfetch, Pinterest Wallpaper) built using Svelte 5 and Tauri v2 (Rust).
 
 Follows the G2G (geek-to-geek) minimalist design philosophy with a Zenbones Sand theme.
 
 ## Architecture
 
 ```
-[ Tauri Desktop Shell (Rust) ]
-   ├── Spawns & monitors: [ Go Backend (Port 54321) ] ──> [ Active C:\ Configs ]
-   └── Displays: [ Svelte 5 Frontend (Port 5173) ]
+[ Tauri Desktop Shell (Rust) ] ──> [ Active User Configs ]
+         └── Displays: [ Svelte 5 Frontend (Tauri IPC) ]
 ```
 
 - **Svelte 5**: Desktop web interface for previewing, adopting, editing, and linking configurations.
-- **Go 1.22+**: Handles file operations (read, write, copy), junction/symlink creation on Windows, and launching PowerShell scripts (`sync_theme.ps1`).
-- **Tauri v2**: Desktop wrapper that orchestrates the UI, spawns the Go server on startup, and terminates it cleanly on window close.
+- **Tauri v2 (Rust)**: Orchestrates the UI window, registers native IPC command handlers for file operations, and manages silent PowerShell script/process execution.
 
 ## Supported Configurations
 
-- **WezTerm**: `C:\Users\Timofey\.wezterm.lua` -> `config\wezterm\.wezterm.lua`
-- **GlazeWM**: `C:\Users\Timofey\.glzr\glazewm\config.yaml` -> `config\glazewm\config.yaml`
-- **Zebar**: `C:\Users\Timofey\.glzr\zebar\` -> `config\zebar`
-- **Fastfetch**: `C:\Users\Timofey\AppData\Roaming\fastfetch\config.jsonc` -> `config\fastfetch\config.jsonc`
-- **Theme Syncer**: `C:\Users\Timofey\Theme\sync_theme.ps1` -> `config\Theme\sync_theme.ps1`
+- **WezTerm**: `<UserProfile>\.wezterm.lua` -> `config\wezterm\.wezterm.lua`
+- **GlazeWM**: `<UserProfile>\.glzr\glazewm\config.yaml` -> `config\glazewm\config.yaml`
+- **Zebar**: `<UserProfile>\.glzr\zebar\` -> `config\zebar`
+- **Fastfetch**: `<AppData>\Roaming\fastfetch\config.jsonc` -> `config\fastfetch\config.jsonc`
+- **Theme Syncer**: `<UserProfile>\Theme\sync_theme.ps1` -> `config\Theme\sync_theme.ps1`
+- **Zed Editor**: `<AppData>\Roaming\Zed\settings.json` -> `config\Zed\settings.json`
+- **VS Code**: `<AppData>\Roaming\Code\User\settings.json` -> `config\VSCode\settings.json`
+- **Komorebi**: `<UserProfile>\komorebi.json` -> `config\komorebi\komorebi.json`
+- **Komorebi Bar**: `<UserProfile>\komorebi.bar.json` -> `config\komorebi\komorebi.bar.json`
+- **whkd Shortcuts**: `<UserProfile>\.config\whkdrc` -> `config\whkd\whkdrc`
+- **Git Config**: `<UserProfile>\.gitconfig` -> `config\git\.gitconfig`
+- **Pinterest Wallpaper**: dynamically located `config.json` -> `config\pinterest-collage\config.json`
 
 ## Quick Start
 
 ### Development
 
-To start the Svelte frontend and Go backend in development mode with HMR:
+To start the Svelte frontend and Tauri app in development mode with HMR:
 
 ```powershell
-# Set Rust variables and run tauri dev (spawns both Vite and Go backend)
+# Set Rust variables and run tauri dev
 $env:RUSTUP_HOME="E:\Dev\rust\.rustup"
 $env:CARGO_HOME="E:\Dev\rust\.cargo"
-$env:PATH="E:\Dev\rust\.cargo\bin;" + $env:PATH
-npm run tauri dev
+$env:PATH="E:\Dev\rust\mingw64\bin;E:\Dev\rust\.cargo\bin;" + $env:PATH
+npx tauri dev
 ```
 
 ### Production Build
 
-To compile a production binary (bundled `.exe`):
+To compile a production installer and standalone binary:
 
 ```powershell
-# 1. Compile Go backend first
-cd src-go
-go build -o winrice-backend.exe main.go
-cd ..
-
-# 2. Copy winrice-backend.exe to release target directory
-# (Tauri Rust app looks for it in the same directory as the executable)
-mkdir src-tauri\target\release -Force
-Copy-Item src-go\winrice-backend.exe src-tauri\target\release\winrice-backend.exe
-
-# 3. Build Tauri application
+# Build Tauri application
 $env:RUSTUP_HOME="E:\Dev\rust\.rustup"
 $env:CARGO_HOME="E:\Dev\rust\.cargo"
-$env:PATH="E:\Dev\rust\.cargo\bin;" + $env:PATH
-npm run tauri build
+$env:PATH="E:\Dev\rust\mingw64\bin;E:\Dev\rust\.cargo\bin;" + $env:PATH
+npx tauri build
 ```
 
 ## Structure

@@ -1,5 +1,19 @@
 use std::process::Command;
 
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+#[cfg(target_os = "windows")]
+fn configure_command(cmd: &mut Command) {
+    cmd.creation_flags(CREATE_NO_WINDOW);
+}
+
+#[cfg(not(target_os = "windows"))]
+fn configure_command(_cmd: &mut Command) {}
+
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ConfigInfo {
@@ -355,22 +369,23 @@ fn link_config_sync(config: &ConfigInfo, project_root: &std::path::Path) -> Resu
         return Err("Must be in repo before linking".to_string());
     }
 
-    // Try creating symlink/junction using PowerShell
-    let link_result = if info.is_dir {
-        Command::new("powershell")
-            .args([
-                "-Command",
-                &format!("New-Item -ItemType Junction -Path \"{}\" -Target \"{}\" -Force", info.target_path, info.repo_path)
-            ])
-            .output()
+    let mut cmd = if info.is_dir {
+        let mut c = Command::new("powershell");
+        c.args([
+            "-Command",
+            &format!("New-Item -ItemType Junction -Path \"{}\" -Target \"{}\" -Force", info.target_path, info.repo_path)
+        ]);
+        c
     } else {
-        Command::new("powershell")
-            .args([
-                "-Command",
-                &format!("New-Item -ItemType SymbolicLink -Path \"{}\" -Target \"{}\" -Force", info.target_path, info.repo_path)
-            ])
-            .output()
+        let mut c = Command::new("powershell");
+        c.args([
+            "-Command",
+            &format!("New-Item -ItemType SymbolicLink -Path \"{}\" -Target \"{}\" -Force", info.target_path, info.repo_path)
+        ]);
+        c
     };
+    configure_command(&mut cmd);
+    let link_result = cmd.output();
 
     let success = match link_result {
         Ok(output) => output.status.success(),
@@ -600,9 +615,10 @@ fn link_config(key: String) -> Result<(), String> {
 fn run_sync() -> Result<String, String> {
     let sync_script_path = get_home_dir().join("Theme").join("sync_theme.ps1");
     let sync_script = sync_script_path.to_string_lossy();
-    let output = Command::new("powershell")
-        .args(["-ExecutionPolicy", "Bypass", "-File", &sync_script])
-        .output()
+    let mut cmd = Command::new("powershell");
+    cmd.args(["-ExecutionPolicy", "Bypass", "-File", &sync_script]);
+    configure_command(&mut cmd);
+    let output = cmd.output()
         .map_err(|e| format!("Failed to run sync: {}", e))?;
 
     let out_str = String::from_utf8_lossy(&output.stdout).to_string();
@@ -616,9 +632,10 @@ fn run_sync() -> Result<String, String> {
 
 #[tauri::command]
 fn reload_glazewm() -> Result<String, String> {
-    let output = Command::new("glazewm")
-        .args(["command", "wm-reload-config"])
-        .output()
+    let mut cmd = Command::new("glazewm");
+    cmd.args(["command", "wm-reload-config"]);
+    configure_command(&mut cmd);
+    let output = cmd.output()
         .map_err(|e| format!("Failed to reload GlazeWM: {}", e))?;
 
     let out_str = String::from_utf8_lossy(&output.stdout).to_string();
@@ -835,9 +852,11 @@ pub fn run() {
                 )?;
             }
 
-            // Run automatic adopt and link on startup
+            // Run automatic adopt and link in a background thread on startup so it does not block the GUI window
             let project_root = get_project_root();
-            perform_auto_adopt_and_link(&project_root);
+            std::thread::spawn(move || {
+                perform_auto_adopt_and_link(&project_root);
+            });
 
             Ok(())
         })

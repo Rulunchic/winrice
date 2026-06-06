@@ -1,11 +1,3 @@
-// Zed settings
-//
-// For information on how to configure Zed, see the Zed
-// documentation: https://zed.dev/docs/configuring-zed
-//
-// To see all of Zed's default settings without changing your
-// custom settings, run `zed: open default settings` from the
-// command palette (cmd-shift-p / ctrl-shift-p)
 {
   "buffer_line_height": "standard",
   "buffer_font_family": "JetBrainsMono Nerd Font",
@@ -42,7 +34,7 @@
   },
   "base_keymap": "VSCode",
   "ui_font_size": 16,
-  "buffer_font_size": 16.0,
+  "buffer_font_size": 16,
   "buffer_font_features": {
     "liga": 0,
     "calt": 0,
@@ -52,7 +44,7 @@
     "font_size": 14
   },
   "theme": {
-    "mode": "light",
+    "mode": "dark",
     "light": "Zenbones Light",
     "dark": "Zenbones Light"
   }

@@ -205,6 +205,18 @@ fn get_configs_definition() -> Vec<ConfigInfo> {
             is_dir: false,
             skip_link: false,
         },
+        ConfigInfo {
+            key: "pinterest_collage".to_string(),
+            name: "Pinterest Wallpaper".to_string(),
+            target_path: "E:\\Dev\\projects\\pinterest-collage\\config.json".to_string(),
+            repo_path: "config\\pinterest-collage\\config.json".to_string(),
+            exists: false,
+            in_repo: false,
+            is_symlink: false,
+            symlink_to: "".to_string(),
+            is_dir: false,
+            skip_link: false,
+        },
     ]
 }
 

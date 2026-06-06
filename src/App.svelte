@@ -196,6 +196,18 @@
       { path: 'widgets.0.presets.0.offsetY', type: 'string', default: '0px', desc: 'Vertical offset' },
       { path: 'widgets.0.shownInTaskbar', type: 'boolean', default: false, desc: 'Display panel in Windows taskbar' },
       { path: 'widgets.0.transparent', type: 'boolean', default: true, desc: 'Transparent panel background' },
+    ],
+    pinterest_collage: [
+      { path: 'min_tiles', type: 'number', default: 12, desc: 'Minimum collage tiles' },
+      { path: 'max_tiles', type: 'number', default: 15, desc: 'Maximum collage tiles' },
+      { path: 'interval_seconds', type: 'number', default: 5, desc: 'Auto refresh interval (s)' },
+      { path: 'margin_top', type: 'number', default: 40, desc: 'Screen top margin' },
+      { path: 'margin_bottom', type: 'number', default: 10, desc: 'Screen bottom margin' },
+      { path: 'margin_left', type: 'number', default: 10, desc: 'Screen left margin' },
+      { path: 'margin_right', type: 'number', default: 10, desc: 'Screen right margin' },
+      { path: 'gap', type: 'number', default: 12, desc: 'Gap between tiles' },
+      { path: 'images_dir', type: 'string', default: 'images', desc: 'Directory with source images' },
+      { path: 'background_color', type: 'color', default: '#f0edec', desc: 'Background color' },
     ]
   };
 
@@ -215,7 +227,7 @@
         rawKey: path,
         value: defaultValue,
         type,
-        isJson: ['zed', 'vscode', 'komorebi', 'komorebi_bar', 'fastfetch', 'zebar_settings', 'zebar_zpack'].includes(selectedKey),
+        isJson: ['zed', 'vscode', 'komorebi', 'komorebi_bar', 'fastfetch', 'zebar_settings', 'zebar_zpack', 'pinterest_collage'].includes(selectedKey),
       }
     ];
   }
@@ -311,7 +323,7 @@
   // Parse config values into a generic list of parameters
   function parseConfigToParams(key: string, content: string) {
     parsedParams = [];
-    const isJsonFile = ['zed', 'vscode', 'komorebi', 'komorebi_bar', 'fastfetch', 'zebar_settings', 'zebar_zpack'].includes(key);
+    const isJsonFile = ['zed', 'vscode', 'komorebi', 'komorebi_bar', 'fastfetch', 'zebar_settings', 'zebar_zpack', 'pinterest_collage'].includes(key);
 
     if (isJsonFile) {
       try {
@@ -382,7 +394,7 @@
 
   // Serialize parameters back to the original config format
   function serializeParamsToContent(key: string, content: string): string {
-    const isJsonFile = ['zed', 'vscode', 'komorebi', 'komorebi_bar', 'fastfetch', 'zebar_settings', 'zebar_zpack'].includes(key);
+    const isJsonFile = ['zed', 'vscode', 'komorebi', 'komorebi_bar', 'fastfetch', 'zebar_settings', 'zebar_zpack', 'pinterest_collage'].includes(key);
 
     if (isJsonFile) {
       const flatTable: any = {};
@@ -439,7 +451,7 @@
     let contentToSave = visual ? serializeParamsToContent(selectedKey, rawContent) : rawContent;
 
     // For line-based files, append any newly added parameters that don't have lineIndex
-    if (visual && !['zed', 'vscode', 'komorebi', 'komorebi_bar', 'fastfetch', 'zebar_settings', 'zebar_zpack'].includes(selectedKey)) {
+    if (visual && !['zed', 'vscode', 'komorebi', 'komorebi_bar', 'fastfetch', 'zebar_settings', 'zebar_zpack', 'pinterest_collage'].includes(selectedKey)) {
       const lines = contentToSave.split(/\r?\n/);
       let appended = false;
       for (const p of parsedParams) {

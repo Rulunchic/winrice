@@ -29,6 +29,15 @@
     jungle_teal: string;
   }
 
+  interface EditableParam {
+    path: string;
+    rawKey: string;
+    value: any;
+    type: 'string' | 'number' | 'boolean' | 'color';
+    isJson: boolean;
+    lineIndex?: number;
+  }
+
   // Active view: 'theme' | 'configs'
   let activeTab = $state<'theme' | 'configs'>('theme');
 
@@ -39,6 +48,15 @@
   let statusMsg = $state<string>('');
   let isLoading = $state<boolean>(false);
   let editMode = $state<'visual' | 'text'>('visual');
+  let searchQuery = $state<string>('');
+
+  // Parsed parameters for dynamic editing
+  let parsedParams = $state<EditableParam[]>([]);
+
+  // Filtered parameters based on search query
+  let filteredParams = $derived(
+    parsedParams.filter(p => p.path.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
 
   // Global Theme state
   let theme = $state<ThemeInfo>({
@@ -56,26 +74,6 @@
     pine_blue: '#538083',
     jungle_teal: '#2a7f62',
   });
-
-  // Visual Form state variables (synchronized to config file structures)
-  let glazeInnerGap = $state<number>(10);
-  let glazeOuterGap = $state<number>(10);
-  let glazeFocusFollowsCursor = $state<boolean>(false);
-
-  let zedFontSize = $state<number>(14);
-  let zedFontFamily = $state<string>('JetBrains Mono');
-  let zedMinimap = $state<boolean>(false);
-
-  let vscodeFontSize = $state<number>(14);
-  let vscodeFontFamily = $state<string>('JetBrains Mono');
-  let vscodeMinimap = $state<boolean>(false);
-
-  let gitName = $state<string>('');
-  let gitEmail = $state<string>('');
-
-  let komorebiBorder = $state<boolean>(false);
-  let komorebiBorderWidth = $state<number>(2);
-  let komorebiLayout = $state<string>('bsp');
 
   // Presets definition
   const presets = {
@@ -135,6 +133,43 @@
 
   // Computed state
   let selectedConfig = $derived(configs.find(c => c.key === selectedKey));
+
+  // Helper function to flatten JSON objects recursively
+  function flattenObject(ob: any): any {
+    const toReturn: any = {};
+    for (const i in ob) {
+      if (!ob.hasOwnProperty(i)) continue;
+      if ((typeof ob[i]) === 'object' && ob[i] !== null && !Array.isArray(ob[i])) {
+        const flatObject = flattenObject(ob[i]);
+        for (const x in flatObject) {
+          if (!flatObject.hasOwnProperty(x)) continue;
+          toReturn[i + '.' + x] = flatObject[x];
+        }
+      } else {
+        toReturn[i] = ob[i];
+      }
+    }
+    return toReturn;
+  }
+
+  // Helper function to reconstruct JSON objects from flat keypaths
+  function unflattenObject(table: any): any {
+    const result: any = {};
+    for (const path in table) {
+      let cursor = result;
+      const parts = path.split('.');
+      for (let i = 0; i < parts.length; i++) {
+        const part = parts[i];
+        if (i === parts.length - 1) {
+          cursor[part] = table[path];
+        } else {
+          cursor[part] = cursor[part] || {};
+          cursor = cursor[part];
+        }
+      }
+    }
+    return result;
+  }
 
   async function fetchStatus() {
     try {
@@ -204,109 +239,118 @@
     statusMsg = `Loaded preset: ${preset.name}`;
   }
 
-  // Parse config values into visual variables
-  function parseVisualVariables(key: string, content: string) {
-    if (key === 'glazewm') {
-      const innerMatch = content.match(/inner:\s*(\d+)/);
-      if (innerMatch) glazeInnerGap = parseInt(innerMatch[1]);
+  // Parse config values into a generic list of parameters
+  function parseConfigToParams(key: string, content: string) {
+    parsedParams = [];
+    const isJsonFile = ['zed', 'vscode', 'komorebi', 'komorebi_bar', 'fastfetch'].includes(key);
 
-      const outerMatch = content.match(/outer:\s*(\d+)/);
-      if (outerMatch) glazeOuterGap = parseInt(outerMatch[1]);
-
-      const focusMatch = content.match(/focus_follows_cursor:\s*(true|false)/);
-      if (focusMatch) glazeFocusFollowsCursor = focusMatch[1] === 'true';
-    } else if (key === 'zed') {
+    if (isJsonFile) {
       try {
         const cleanJson = content.replace(/\/\/.*|\/\*[\s\S]*?\*\//g, ''); // strip comments
         const parsed = JSON.parse(cleanJson);
-        if (parsed.buffer_font_size) zedFontSize = parsed.buffer_font_size;
-        if (parsed.buffer_font_family) zedFontFamily = parsed.buffer_font_family;
-        if (parsed.show_minimap !== undefined) zedMinimap = parsed.show_minimap;
+        const flat = flattenObject(parsed);
+        for (const path in flat) {
+          const val = flat[path];
+          let type: 'string' | 'number' | 'boolean' | 'color' = typeof val as any;
+          if (typeof val === 'string' && val.startsWith('#') && (val.length === 4 || val.length === 7)) {
+            type = 'color';
+          }
+          parsedParams.push({ path, rawKey: path, value: val, type, isJson: true });
+        }
       } catch (e) {
-        console.warn('Failed to parse Zed settings:', e);
+        console.warn('JSON parse error:', e);
       }
-    } else if (key === 'vscode') {
-      try {
-        const cleanJson = content.replace(/\/\/.*|\/\*[\s\S]*?\*\//g, '');
-        const parsed = JSON.parse(cleanJson);
-        if (parsed['editor.fontSize']) vscodeFontSize = parsed['editor.fontSize'];
-        if (parsed['editor.fontFamily']) vscodeFontFamily = parsed['editor.fontFamily'];
-        if (parsed['editor.minimap.enabled'] !== undefined) vscodeMinimap = parsed['editor.minimap.enabled'];
-      } catch (e) {
-        console.warn('Failed to parse VS Code settings:', e);
+    } else {
+      // Line-based formats (YAML, Lua, gitconfig, whkdrc)
+      const lines = content.split(/\r?\n/);
+      let re = /^(\s*)([a-zA-Z0-9_\.\-\/]+):\s*([^\r\n#]+)/; // YAML default
+      if (key === 'wezterm' || key === 'gitconfig') {
+        re = /^(\s*)([a-zA-Z0-9_\-]+)\s*=\s*([^\r\n#]+)/; // Lua/Ini
+      } else if (key === 'whkd') {
+        re = /^([^#:\r\n]+)\s*:\s*([^\r\n#]+)/; // whkd
       }
-    } else if (key === 'gitconfig') {
-      const nameMatch = content.match(/name\s*=\s*(.+)/);
-      if (nameMatch) gitName = nameMatch[1].trim();
 
-      const emailMatch = content.match(/email\s*=\s*(.+)/);
-      if (emailMatch) gitEmail = emailMatch[1].trim();
-    } else if (key === 'komorebi') {
-      try {
-        const parsed = JSON.parse(content);
-        if (parsed.enable_border !== undefined) komorebiBorder = parsed.enable_border;
-        if (parsed.border_width !== undefined) komorebiBorderWidth = parsed.border_width;
-        if (parsed.default_layout !== undefined) komorebiLayout = parsed.default_layout;
-      } catch (e) {
-        console.warn('Failed to parse Komorebi settings:', e);
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const m = line.match(re);
+        if (m) {
+          const rawKey = m[2] ? m[2].trim() : m[1].trim();
+          let rawVal = m[3] ? m[3].trim() : m[2].trim();
+          
+          // Strip quotes
+          if ((rawVal.startsWith('"') && rawVal.endsWith('"')) || (rawVal.startsWith("'") && rawVal.endsWith("'"))) {
+            rawVal = rawVal.substring(1, rawVal.length - 1);
+          }
+          
+          let val: any = rawVal;
+          let type: 'string' | 'number' | 'boolean' | 'color' = 'string';
+          
+          if (rawVal.toLowerCase() === 'true') {
+            val = true;
+            type = 'boolean';
+          } else if (rawVal.toLowerCase() === 'false') {
+            val = false;
+            type = 'boolean';
+          } else if (!isNaN(Number(rawVal)) && rawVal !== '') {
+            val = Number(rawVal);
+            type = 'number';
+          } else if (rawVal.startsWith('#') && (rawVal.length === 4 || rawVal.length === 7)) {
+            type = 'color';
+          }
+          
+          parsedParams.push({
+            path: rawKey,
+            rawKey,
+            value: val,
+            type,
+            isJson: false,
+            lineIndex: i
+          });
+        }
       }
     }
   }
 
-  // Serialize visual variables back to config format
-  function serializeVisualVariables(key: string, content: string): string {
-    if (key === 'glazewm') {
-      let result = content;
-      result = result.replace(/inner:\s*\d+/g, `inner: ${glazeInnerGap}`);
-      result = result.replace(/outer:\s*\d+/g, `outer: ${glazeOuterGap}`);
-      result = result.replace(/focus_follows_cursor:\s*(true|false)/g, `focus_follows_cursor: ${glazeFocusFollowsCursor}`);
-      return result;
-    } else if (key === 'zed') {
-      try {
-        const cleanJson = content.replace(/\/\/.*|\/\*[\s\S]*?\*\//g, '');
-        const parsed = JSON.parse(cleanJson);
-        parsed.buffer_font_size = zedFontSize;
-        parsed.buffer_font_family = zedFontFamily;
-        parsed.show_minimap = zedMinimap;
-        return JSON.stringify(parsed, null, 2);
-      } catch (e) {
-        statusMsg = 'JSON formatting error, fallback to text editor';
-        return content;
+  // Serialize parameters back to the original config format
+  function serializeParamsToContent(key: string, content: string): string {
+    const isJsonFile = ['zed', 'vscode', 'komorebi', 'komorebi_bar', 'fastfetch'].includes(key);
+
+    if (isJsonFile) {
+      const flatTable: any = {};
+      for (const p of parsedParams) {
+        flatTable[p.path] = p.value;
       }
-    } else if (key === 'vscode') {
-      try {
-        const cleanJson = content.replace(/\/\/.*|\/\*[\s\S]*?\*\//g, '');
-        const parsed = JSON.parse(cleanJson);
-        parsed['editor.fontSize'] = vscodeFontSize;
-        parsed['editor.fontFamily'] = vscodeFontFamily;
-        parsed['editor.minimap.enabled'] = vscodeMinimap;
-        return JSON.stringify(parsed, null, 2);
-      } catch (e) {
-        statusMsg = 'JSON formatting error';
-        return content;
+      const unflat = unflattenObject(flatTable);
+      return JSON.stringify(unflat, null, 2);
+    } else {
+      const lines = content.split(/\r?\n/);
+      for (const p of parsedParams) {
+        if (p.lineIndex !== undefined) {
+          const line = lines[p.lineIndex];
+          let strVal = String(p.value);
+          if (p.type === 'color' || p.type === 'string') {
+            if (key === 'wezterm' || key === 'gitconfig') {
+              strVal = `'${p.value}'`; // use single quotes
+            }
+          }
+
+          if (key === 'wezterm' || key === 'gitconfig') {
+            lines[p.lineIndex] = line.replace(/(=)\s*[^\r\n#]+/, `$1 ${strVal}`);
+          } else if (key === 'glazewm') {
+            lines[p.lineIndex] = line.replace/(:)\s*[^\r\n#]+/, `$1 ${strVal}`);
+          } else if (key === 'whkd') {
+            lines[p.lineIndex] = line.replace(/:.*/, `: ${strVal}`);
+          }
+        }
       }
-    } else if (key === 'gitconfig') {
-      let result = content;
-      result = result.replace(/name\s*=\s*(.+)/g, `name = ${gitName}`);
-      result = result.replace(/email\s*=\s*(.+)/g, `email = ${gitEmail}`);
-      return result;
-    } else if (key === 'komorebi') {
-      try {
-        const parsed = JSON.parse(content);
-        parsed.enable_border = komorebiBorder;
-        parsed.border_width = komorebiBorderWidth;
-        parsed.default_layout = komorebiLayout;
-        return JSON.stringify(parsed, null, 2);
-      } catch (e) {
-        return content;
-      }
+      return lines.join('\n');
     }
-    return content;
   }
 
   async function loadFile(key: string) {
     statusMsg = '';
     rawContent = '';
+    parsedParams = [];
     
     const config = configs.find(c => c.key === key);
     if (!config || config.isDir || !config.inRepo) return;
@@ -315,7 +359,7 @@
       const res = await fetch(`/api/file?key=${key}`);
       if (res.ok) {
         rawContent = await res.text();
-        parseVisualVariables(key, rawContent);
+        parseConfigToParams(key, rawContent);
       } else {
         statusMsg = 'Failed to load file content';
       }
@@ -328,7 +372,7 @@
     if (!selectedKey) return;
     statusMsg = 'Saving...';
     
-    const contentToSave = visual ? serializeVisualVariables(selectedKey, rawContent) : rawContent;
+    const contentToSave = visual ? serializeParamsToContent(selectedKey, rawContent) : rawContent;
 
     try {
       const res = await fetch('/api/file/write', {
@@ -339,6 +383,7 @@
       if (res.ok) {
         statusMsg = 'Configuration saved';
         rawContent = contentToSave;
+        parseConfigToParams(selectedKey, rawContent); // reload
         setTimeout(() => { if (statusMsg === 'Configuration saved') statusMsg = ''; }, 2000);
       } else {
         const err = await res.text();
@@ -594,132 +639,54 @@
           </div>
         </div>
 
-        <!-- Custom Visual Form depending on Config Key -->
+        <!-- Dynamic Visual Editor -->
         {#if editMode === 'visual'}
-          <div class="visual-form panel">
-            <!-- GlazeWM Visual settings -->
-            {#if selectedConfig.key === 'glazewm'}
-              <div class="visual-section">
-                <h3>GlazeWM Window Tiling Settings</h3>
-                <div class="editor-row">
-                  <label for="glaze-inner">Inner Window Gap (px):</label>
-                  <input type="number" id="glaze-inner" bind:value={glazeInnerGap} />
-                </div>
-                <div class="editor-row">
-                  <label for="glaze-outer">Outer Border Gap (px):</label>
-                  <input type="number" id="glaze-outer" bind:value={glazeOuterGap} />
-                </div>
-                <div class="editor-row">
-                  <label class="checkbox-label">
-                    <input type="checkbox" bind:checked={glazeFocusFollowsCursor} />
-                    Focus Follows Cursor
-                  </label>
-                </div>
-                <button class="primary" onclick={() => saveConfig(true)}>Save Settings</button>
-              </div>
+          <div class="dynamic-editor panel">
+            <div class="search-header">
+              <input type="text" placeholder="Search parameters..." class="search-input" bind:value={searchQuery} />
+              <button class="primary" onclick={() => saveConfig(true)}>Save Settings</button>
+            </div>
 
-            <!-- Zed Editor Visual settings -->
-            {:else if selectedConfig.key === 'zed'}
-              <div class="visual-section">
-                <h3>Zed Editor Global Settings</h3>
-                <div class="editor-row">
-                  <label for="zed-font">Font Family:</label>
-                  <input type="text" id="zed-font" bind:value={zedFontFamily} />
+            <div class="params-list">
+              {#if filteredParams.length === 0}
+                <div class="editor-placeholder">
+                  {#if parsedParams.length === 0}
+                    This file cannot be parsed dynamically or is currently empty. Use **Code Editor** to customize.
+                  {:else}
+                    No parameters matching "{searchQuery}"
+                  {/if}
                 </div>
-                <div class="editor-row">
-                  <label for="zed-size">Font Size (px):</label>
-                  <input type="number" id="zed-size" bind:value={zedFontSize} />
-                </div>
-                <div class="editor-row">
-                  <label class="checkbox-label">
-                    <input type="checkbox" bind:checked={zedMinimap} />
-                    Show Code Minimap
-                  </label>
-                </div>
-                <button class="primary" onclick={() => saveConfig(true)}>Save Settings</button>
-              </div>
-
-            <!-- VS Code Visual settings -->
-            {:else if selectedConfig.key === 'vscode'}
-              <div class="visual-section">
-                <h3>VS Code Editor Settings</h3>
-                <div class="editor-row">
-                  <label for="vscode-font">Font Family:</label>
-                  <input type="text" id="vscode-font" bind:value={vscodeFontFamily} />
-                </div>
-                <div class="editor-row">
-                  <label for="vscode-size">Font Size (px):</label>
-                  <input type="number" id="vscode-size" bind:value={vscodeFontSize} />
-                </div>
-                <div class="editor-row">
-                  <label class="checkbox-label">
-                    <input type="checkbox" bind:checked={vscodeMinimap} />
-                    Enable Code Minimap
-                  </label>
-                </div>
-                <button class="primary" onclick={() => saveConfig(true)}>Save Settings</button>
-              </div>
-
-            <!-- Git Config Visual settings -->
-            {:else if selectedConfig.key === 'gitconfig'}
-              <div class="visual-section">
-                <h3>Git Global User Settings</h3>
-                <div class="editor-row">
-                  <label for="git-name">Global Username:</label>
-                  <input type="text" id="git-name" bind:value={gitName} />
-                </div>
-                <div class="editor-row">
-                  <label for="git-email">Global Email:</label>
-                  <input type="text" id="git-email" bind:value={gitEmail} />
-                </div>
-                <button class="primary" onclick={() => saveConfig(true)}>Save Settings</button>
-              </div>
-
-            <!-- Komorebi Visual settings -->
-            {:else if selectedConfig.key === 'komorebi'}
-              <div class="visual-section">
-                <h3>Komorebi Window Manager Settings</h3>
-                <div class="editor-row">
-                  <label class="checkbox-label">
-                    <input type="checkbox" bind:checked={komorebiBorder} />
-                    Enable Active Window Border
-                  </label>
-                </div>
-                <div class="editor-row">
-                  <label for="komorebi-width">Border Width (px):</label>
-                  <input type="number" id="komorebi-width" bind:value={komorebiBorderWidth} />
-                </div>
-                <div class="editor-row">
-                  <label for="komorebi-layout">Default Workspace Layout:</label>
-                  <select id="komorebi-layout" bind:value={komorebiLayout}>
-                    <option value="bsp">BSP (Binary Space Partitioning)</option>
-                    <option value="columns">Columns</option>
-                    <option value="rows">Rows</option>
-                  </select>
-                </div>
-                <button class="primary" onclick={() => saveConfig(true)}>Save Settings</button>
-              </div>
-
-            <!-- WezTerm is configured via global theme, but show details here -->
-            {:else if selectedConfig.key === 'wezterm'}
-              <div class="visual-section">
-                <h3>WezTerm Settings</h3>
-                <p class="desc-text">WezTerm settings are managed directly in the **Theme Editor** tab to serve as the unified source of truth for the entire workspace style pipeline.</p>
-                <button onclick={() => activeTab = 'theme'}>Open Theme Editor</button>
-              </div>
-
-            {:else if selectedConfig.isDir}
-              <div class="editor-placeholder">
-                Zebar is a directory containing multiple files. Files are linked automatically, but must be edited via terminal or filesystem inside <code>config/zebar/</code>.
-              </div>
-            {:else}
-              <div class="editor-placeholder">
-                Visual editor not available for this configuration. Use the **Code Editor** tab instead.
-              </div>
-            {/if}
+              {:else}
+                {#each filteredParams as param}
+                  <div class="param-row">
+                    <span class="param-path" title={param.path}>{param.path}</span>
+                    
+                    <div class="param-control">
+                      {#if param.type === 'boolean'}
+                        <label class="checkbox-label">
+                          <input type="checkbox" bind:checked={param.value} />
+                          {param.value ? 'Enabled' : 'Disabled'}
+                        </label>
+                      {:else if param.type === 'number'}
+                        <input type="number" class="param-num-input" bind:value={param.value} />
+                      {:else if param.type === 'color'}
+                        <div class="color-picker-row">
+                          <div class="color-circle-wrapper" style="background: {param.value}">
+                            <input type="color" class="color-input" bind:value={param.value} />
+                          </div>
+                          <code class="hex-val">{param.value}</code>
+                        </div>
+                      {:else}
+                        <input type="text" class="param-text-input" bind:value={param.value} />
+                      {/if}
+                    </div>
+                  </div>
+                {/each}
+              {/if}
+            </div>
           </div>
         {:else}
-          <!-- Text/Code Editor Section -->
+          <!-- Code Editor Section -->
           <div class="editor-section">
             <div class="editor-header">
               <span>Plaintext Config Editor (Direct Repo Sync)</span>
@@ -930,7 +897,7 @@
     margin-top: 8px;
   }
 
-  .theme-section, .visual-form {
+  .theme-section, .dynamic-editor {
     display: flex;
     flex-direction: column;
     gap: 10px;
@@ -940,30 +907,96 @@
     padding: 12px;
   }
 
-  .visual-form {
+  .dynamic-editor {
     background: var(--bg-panel);
     flex-grow: 1;
+    overflow: hidden;
   }
 
-  .visual-section {
+  .search-header {
     display: flex;
-    flex-direction: column;
-    gap: 12px;
-    max-width: 500px;
-  }
-
-  .visual-section h3 {
-    font-size: 0.95rem;
-    color: var(--accent);
+    gap: 8px;
     border-bottom: 1px solid var(--border);
-    padding-bottom: 4px;
+    padding-bottom: 10px;
     margin-bottom: 4px;
   }
 
-  .desc-text {
-    font-size: 0.875rem;
+  .search-input {
+    flex-grow: 1;
+    padding: 6px 12px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: var(--bg-base);
+    color: var(--fg);
+    font-family: var(--font-mono);
+  }
+
+  .search-input:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+
+  .params-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    overflow-y: auto;
+    flex-grow: 1;
+    padding-right: 4px;
+  }
+
+  .param-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 8px;
+    background: rgba(0, 0, 0, 0.03);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    gap: 16px;
+  }
+
+  .param-path {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
     color: var(--fg-muted);
-    line-height: 1.5;
+    word-break: break-all;
+    max-width: 400px;
+  }
+
+  .param-control {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    min-width: 200px;
+  }
+
+  .param-text-input {
+    width: 100%;
+    padding: 4px 8px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: var(--bg-base);
+    color: var(--fg);
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+  }
+
+  .param-num-input {
+    width: 80px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: var(--bg-base);
+    color: var(--fg);
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    text-align: right;
+  }
+
+  .param-text-input:focus, .param-num-input:focus {
+    outline: none;
+    border-color: var(--accent);
   }
 
   .theme-section.span-2 {
@@ -996,6 +1029,8 @@
     gap: 8px;
     cursor: pointer;
     user-select: none;
+    font-size: 0.85rem;
+    color: var(--fg);
   }
 
   .checkbox-label input {

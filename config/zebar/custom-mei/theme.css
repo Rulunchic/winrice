@@ -2,7 +2,7 @@
 :root {
   --font-family: 'JetBrains Mono', monospace;
   --font-size: 14px;
-  --bg-color: rgba(255, 64, 0, 0.85);
+  --bg-color: rgba(240, 237, 236, 0.85);
   --fg-color: #2c363c;
   --border-focused: #2b6f7c;
   --border-unfocused: #b2a9a5;

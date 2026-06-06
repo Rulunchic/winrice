@@ -61,7 +61,7 @@ window_effects:
     # ** Exclusive to Windows 11 due to API limitations.
     border:
       enabled: true
-      color: '#2b6f7c'
+      color: '#fe8019'
 
     # Remove the title bar from the window's frame. Note that this can
     # cause rendering issues for some applications.
@@ -86,7 +86,7 @@ window_effects:
   other_windows:
     border:
       enabled: true
-      color: '#b2a9a5'
+      color: '#7c6f64'
     hide_title_bar:
       enabled: false
     corner_style:
@@ -270,9 +270,8 @@ keybindings:
   - commands: ['shell-exec cmd']
     bindings: ['alt+enter']
 
-  # Signal the wallpaper daemon to swap to the next pre-generated wallpaper.
-  # wallpaper_trigger.bat just writes a file; the daemon detects it in <10 ms.
-  - commands: ['shell-exec --hide-window C:/Users/Timofey/Desktop/wallpaper/wallpaper_trigger.exe']
+  # Refresh pinterest-collage wallpaper on demand (kill + relaunch).
+  - commands: ['shell-exec --hide-window powershell -WindowStyle Hidden -Command "Stop-Process -Name pinterest-collage -Force -ErrorAction SilentlyContinue; Start-Sleep -Milliseconds 200; Start-Process E:/Dev/projects/pinterest-collage/pinterest-collage.exe -WorkingDirectory E:/Dev/projects/pinterest-collage -WindowStyle Hidden"']
     bindings: ['ctrl+alt+space']
 
   # Focus the next/previous active workspace defined in `workspaces` config.

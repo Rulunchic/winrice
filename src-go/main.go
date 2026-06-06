@@ -697,7 +697,7 @@ func main() {
 		os.MkdirAll(filepath.Join(projectRoot, "config"), 0755)
 	}
 
-	performAutoAdoptAndLink()
+	go performAutoAdoptAndLink()
 
 	http.HandleFunc("/api/status", handleStatus)
 	http.HandleFunc("/api/file", handleReadFile)

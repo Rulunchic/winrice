@@ -335,11 +335,11 @@
           }
 
           if (key === 'wezterm' || key === 'gitconfig') {
-            lines[p.lineIndex] = line.replace(/(=)\s*[^\r\n#]+/, `$1 ${strVal}`);
+            lines[p.lineIndex] = line.replace(new RegExp("(=)\\s*[^\\r\\n#]+"), `$1 ${strVal}`);
           } else if (key === 'glazewm') {
-            lines[p.lineIndex] = line.replace/(:)\s*[^\r\n#]+/, `$1 ${strVal}`);
+            lines[p.lineIndex] = line.replace(new RegExp("(:)\\s*[^\\r\\n#]+"), `$1 ${strVal}`);
           } else if (key === 'whkd') {
-            lines[p.lineIndex] = line.replace(/:.*/, `: ${strVal}`);
+            lines[p.lineIndex] = line.replace(new RegExp(":.+"), `: ${strVal}`);
           }
         }
       }
@@ -433,6 +433,8 @@
   onMount(async () => {
     await fetchStatus();
     await fetchTheme();
+    const interval = setInterval(fetchStatus, 5000);
+    return () => clearInterval(interval);
   });
 
   $effect(() => {

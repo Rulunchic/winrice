@@ -7,20 +7,20 @@ local theme = {
   font_family = 'JetBrains Mono',
   font_size = 14.0,
   opacity = 0.85,
-  border_focused = '#2b6f7c',
-  border_unfocused = '#b2a9a5',
-  bg_color = '#f0edec',
-  fg_color = '#2c363c',
-  accent_color = '#cbd9e3',
-  lavender = '#dfd9e2',
-  lilac = '#c3acce',
-  lavender_grey = '#89909f',
-  pine_blue = '#538083',
-  jungle_teal = '#2a7f62',
+  border_focused = '#8aadf4',
+  border_unfocused = '#494d64',
+  bg_color = '#24273a',
+  fg_color = '#cad3f5',
+  accent_color = '#363a4f',
+  lavender = '#b7bdf8',
+  lilac = '#c6a0f6',
+  lavender_grey = '#a5adcb',
+  pine_blue = '#8bd5ca',
+  jungle_teal = '#a6da95',
 }
 -- @theme-end
 
--- Create a custom high-contrast variant of the zenbones color scheme
+-- Create a custom high-contrast and readability variant of the selected color scheme
 local scheme = wezterm.color.get_builtin_schemes()[theme.color_scheme]
 if scheme then
   -- Override pale colors (blue, magenta, cyan) to be darker/high-contrast
@@ -32,10 +32,21 @@ if scheme then
   scheme.brights[6] = '#a85fa8' -- bright magenta
   scheme.brights[7] = '#2894a8' -- bright cyan
 
+  -- Readability overrides for gray text (brights[1]) in dark/light modes
+  local bg = theme.bg_color:lower()
+  local is_dark = bg:match("^#1") or bg:match("^#2")
+  if is_dark then
+    scheme.brights[1] = '#909090' -- Make gray text bright enough on dark background
+    scheme.ansi[1] = '#505050'
+  else
+    scheme.brights[1] = '#504945' -- Make gray text dark enough on sand background
+    scheme.ansi[1] = '#2c363c'
+  end
+
   config.color_schemes = {
-    ['zenbones_custom'] = scheme,
+    ['custom_scheme'] = scheme,
   }
-  config.color_scheme = 'zenbones_custom'
+  config.color_scheme = 'custom_scheme'
 else
   config.color_scheme = theme.color_scheme
 end

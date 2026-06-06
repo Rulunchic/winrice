@@ -657,7 +657,12 @@
     root.style.setProperty('--font-mono', `'${theme.font_family}', monospace`);
   });
 
+  async function log(msg: string) {
+    try { await invoke('write_log', { message: msg }); } catch (_) {}
+  }
+
   onMount(async () => {
+    await log('=== onMount started ===');
     try {
       const keysToFetch = [
         { key: 'wezterm', name: 'WezTerm' },
@@ -679,7 +684,9 @@
       configs = [];
       for (const item of keysToFetch) {
         initStage = `Verifying ${item.name} config...`;
+        await log(`Fetching config status: ${item.key}`);
         const info = await invoke<ConfigInfo>('get_config_status', { key: item.key });
+        await log(`OK: ${item.key} exists=${info.exists} inRepo=${info.inRepo}`);
         configs = [...configs, info];
         await new Promise(resolve => setTimeout(resolve, 80));
       }
@@ -688,15 +695,23 @@
         selectedKey = configs[0].key;
       }
 
+      await log('Starting fetchTheme...');
       initStage = 'Loading global theme settings...';
       await fetchTheme();
+      await log('fetchTheme done');
       await new Promise(resolve => setTimeout(resolve, 80));
 
+      await log('Starting fetchCustomPresets...');
       initStage = 'Loading custom presets...';
       await fetchCustomPresets();
+      await log('fetchCustomPresets done');
       await new Promise(resolve => setTimeout(resolve, 80));
+
+      await log('=== Initialization complete ===');
     } catch (e) {
+      await log(`ERROR in onMount: ${e}`);
       console.error('Initialization error:', e);
+      alert(`Initialization error: ${e}`);
     } finally {
       isInitializing = false;
     }

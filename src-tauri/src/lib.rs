@@ -1,4 +1,5 @@
 use std::process::Command;
+use std::io::Write;
 
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
@@ -851,6 +852,27 @@ fn delete_preset(name: String) -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+fn write_log(message: String) -> Result<(), String> {
+    let log_path = get_appdata_dir().join("winrice-debug.log");
+    let mut file = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&log_path)
+        .map_err(|e| e.to_string())?;
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+    writeln!(file, "[{}] {}", now, message).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+fn get_log_path() -> String {
+    get_appdata_dir().join("winrice-debug.log").to_string_lossy().to_string()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -885,6 +907,8 @@ pub fn run() {
             get_presets,
             save_preset,
             delete_preset,
+            write_log,
+            get_log_path,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

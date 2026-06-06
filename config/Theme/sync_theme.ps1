@@ -167,6 +167,43 @@ if ($content -match '(?s)--\s*@theme\r?\n(.*?)\r?\n--\s*@theme-end') {
         }
     }
 
+    # 5.5. Update Pinterest Wallpaper config.json background_color
+    $pinterestPaths = @(
+        (Join-Path $env:APPDATA "pinterest-collage\config.json"),
+        "E:\Dev\projects\pinterest-collage\config.json",
+        (Join-Path $HOME "Dev\projects\pinterest-collage\config.json"),
+        (Join-Path $HOME "projects\pinterest-collage\config.json")
+    )
+
+    foreach ($pPath in $pinterestPaths) {
+        if (Test-Path $pPath) {
+            try {
+                $pJson = Get-Content $pPath -Raw | ConvertFrom-Json
+                if ($pJson.background_color -ne $bg_color) {
+                    $pJson.background_color = $bg_color
+                    $pJson | ConvertTo-Json -Depth 10 | Set-Content $pPath
+                    Write-Host "Updated Pinterest Wallpaper background_color to $bg_color in $pPath"
+                }
+            } catch {
+                Write-Warning "Failed to update Pinterest Wallpaper config: $_"
+            }
+        }
+    }
+
+    $repoPinterestPath = Join-Path $PSScriptRoot "..\pinterest-collage\config.json"
+    if (Test-Path $repoPinterestPath) {
+        try {
+            $pJson = Get-Content $repoPinterestPath -Raw | ConvertFrom-Json
+            if ($pJson.background_color -ne $bg_color) {
+                $pJson.background_color = $bg_color
+                $pJson | ConvertTo-Json -Depth 10 | Set-Content $repoPinterestPath
+                Write-Host "Updated repo Pinterest Wallpaper background_color to $bg_color"
+            }
+        } catch {
+            Write-Warning "Failed to update repo Pinterest Wallpaper config: $_"
+        }
+    }
+
     # 6. Reload GlazeWM config
     & glazewm command wm-reload-config
     Write-Host "Reloaded GlazeWM config."

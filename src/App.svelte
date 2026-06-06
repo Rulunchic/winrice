@@ -521,6 +521,9 @@
       statusMsg = 'Configuration saved';
       rawContent = contentToSave;
       parseConfigToParams(selectedKey, rawContent); // reload
+      if (selectedKey === 'wezterm') {
+        await fetchTheme();
+      }
       setTimeout(() => { if (statusMsg === 'Configuration saved') statusMsg = ''; }, 2000);
     } catch (e) {
       statusMsg = `Save failed: ${e}`;
@@ -623,14 +626,34 @@
     }
   }
 
+  function getContrastColor(hex: string): string {
+    const cleanHex = (hex || '#2b6f7c').replace('#', '');
+    const num = parseInt(cleanHex, 16);
+    const r = (num >> 16) & 255;
+    const g = (num >> 8) & 255;
+    const b = num & 255;
+    const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
+    return (yiq >= 128) ? '#1c1917' : '#ffffff';
+  }
+
   $effect(() => {
     // Dynamic theme applying to the Svelte app itself
     const root = document.documentElement;
     root.style.setProperty('--bg-base', theme.bg_color);
     root.style.setProperty('--bg-panel', adjustColorLightness(theme.bg_color, -4));
     root.style.setProperty('--fg', theme.fg_color);
+    
+    const fgRgb = hexToRgb(theme.fg_color);
+    const accentRgb = hexToRgb(theme.border_focused);
+    
+    root.style.setProperty('--fg-rgb', fgRgb);
+    root.style.setProperty('--accent-rgb', accentRgb);
+    root.style.setProperty('--fg-muted', `rgba(${fgRgb}, 0.7)`);
+    root.style.setProperty('--fg-subtle', `rgba(${fgRgb}, 0.5)`);
+    
     root.style.setProperty('--accent', theme.border_focused);
-    root.style.setProperty('--border', `rgba(${hexToRgb(theme.fg_color)}, 0.18)`);
+    root.style.setProperty('--accent-fg', getContrastColor(theme.border_focused));
+    root.style.setProperty('--border', `rgba(${fgRgb}, 0.18)`);
     root.style.setProperty('--font-mono', `'${theme.font_family}', monospace`);
   });
 
@@ -1015,7 +1038,7 @@
   .loading-spinner {
     width: 40px;
     height: 40px;
-    border: 3px solid rgba(0, 0, 0, 0.08);
+    border: 3px solid var(--border);
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
   }
@@ -1057,7 +1080,7 @@
   .tab-controls {
     display: flex;
     gap: 4px;
-    background: rgba(0, 0, 0, 0.05);
+    background: rgba(var(--fg-rgb), 0.05);
     padding: 2px;
     border-radius: 4px;
     border: 1px solid var(--border);
@@ -1118,7 +1141,7 @@
   }
 
   .config-item:hover, .preset-item:hover {
-    background: rgba(44, 54, 60, 0.05);
+    background: rgba(var(--fg-rgb), 0.05);
     border-color: var(--border);
   }
 
@@ -1163,7 +1186,7 @@
     border: 1px solid var(--border);
     color: var(--accent);
     border-color: var(--accent);
-    background: rgba(43, 111, 124, 0.05);
+    background: rgba(var(--accent-rgb), 0.08);
   }
 
   .main {
@@ -1190,7 +1213,7 @@
   .view-controls {
     display: flex;
     gap: 4px;
-    background: rgba(0, 0, 0, 0.03);
+    background: rgba(var(--fg-rgb), 0.03);
     padding: 2px;
     border-radius: 4px;
     border: 1px solid var(--border);
@@ -1218,7 +1241,7 @@
     display: flex;
     flex-direction: column;
     gap: 10px;
-    background: rgba(0, 0, 0, 0.02);
+    background: rgba(var(--fg-rgb), 0.02);
     border: 1px solid var(--border);
     border-radius: 4px;
     padding: 12px;
@@ -1267,7 +1290,7 @@
     justify-content: space-between;
     align-items: center;
     padding: 6px 8px;
-    background: rgba(0, 0, 0, 0.03);
+    background: rgba(var(--fg-rgb), 0.03);
     border: 1px solid var(--border);
     border-radius: 4px;
     gap: 16px;
@@ -1441,7 +1464,7 @@
   }
 
   .meta-value {
-    background: rgba(0, 0, 0, 0.04);
+    background: rgba(var(--fg-rgb), 0.04);
     padding: 1px 6px;
     border-radius: 4px;
     font-size: 0.75rem;
@@ -1573,7 +1596,7 @@
     justify-content: space-between;
     align-items: center;
     padding: 8px 12px;
-    background: rgba(0, 0, 0, 0.015);
+    background: rgba(var(--fg-rgb), 0.015);
     border: 1px solid var(--border);
     border-radius: 4px;
     gap: 12px;

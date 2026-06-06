@@ -62,18 +62,16 @@ npx tauri build
 ```
 E:\Dev\projects\winrice\
 ├── config\             — adopted configuration files (created on first adopt)
-├── src-go\             — Go backend API server source
-│   ├── main.go
-│   └── go.mod
-├── src-tauri\          — Tauri v2 configuration & Rust entry point
+├── src-tauri\          — Tauri v2 configuration & Rust entry point (Current Backend)
 │   ├── Cargo.toml
 │   └── src\
 │       ├── main.rs
 │       └── lib.rs
-├── src\                — Svelte 5 frontend source
+├── src\                — Svelte 5 frontend source (Current Frontend)
 │   ├── App.svelte      — dashboard layout & interactions
 │   ├── app.css         — G2G reset and typography
 │   └── theme.css       — Zenbones Sand theme palette
+├── src-go\             — [LEGACY] Go backend source (not used in current Tauri v2 build)
 ├── package.json
 └── vite.config.ts
 ```

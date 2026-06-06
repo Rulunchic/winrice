@@ -659,12 +659,42 @@
 
   onMount(async () => {
     try {
-      initStage = 'Loading configurations...';
-      await fetchStatus();
+      const keysToFetch = [
+        { key: 'wezterm', name: 'WezTerm' },
+        { key: 'glazewm', name: 'GlazeWM' },
+        { key: 'zebar', name: 'Zebar Directory' },
+        { key: 'zebar_settings', name: 'Zebar Settings' },
+        { key: 'zebar_zpack', name: 'Zebar Layout' },
+        { key: 'fastfetch', name: 'Fastfetch' },
+        { key: 'sync_script', name: 'Theme Syncer' },
+        { key: 'zed', name: 'Zed Editor' },
+        { key: 'vscode', name: 'VS Code' },
+        { key: 'komorebi', name: 'Komorebi' },
+        { key: 'komorebi_bar', name: 'Komorebi Bar' },
+        { key: 'whkd', name: 'whkd Shortcuts' },
+        { key: 'gitconfig', name: 'Git Config' },
+        { key: 'pinterest_collage', name: 'Pinterest Wallpaper' }
+      ];
+
+      configs = [];
+      for (const item of keysToFetch) {
+        initStage = `Verifying ${item.name} config...`;
+        const info = await invoke<ConfigInfo>('get_config_status', { key: item.key });
+        configs = [...configs, info];
+        await new Promise(resolve => setTimeout(resolve, 80));
+      }
+
+      if (!selectedKey && configs.length > 0) {
+        selectedKey = configs[0].key;
+      }
+
       initStage = 'Loading global theme settings...';
       await fetchTheme();
+      await new Promise(resolve => setTimeout(resolve, 80));
+
       initStage = 'Loading custom presets...';
       await fetchCustomPresets();
+      await new Promise(resolve => setTimeout(resolve, 80));
     } catch (e) {
       console.error('Initialization error:', e);
     } finally {

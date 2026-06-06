@@ -547,6 +547,17 @@ fn get_status() -> Result<Vec<ConfigInfo>, String> {
 }
 
 #[tauri::command]
+fn get_config_status(key: String) -> Result<ConfigInfo, String> {
+    let project_root = get_project_root();
+    for c in get_configs_definition() {
+        if c.key == key {
+            return Ok(get_info(c, &project_root));
+        }
+    }
+    Err("Config key not found".to_string())
+}
+
+#[tauri::command]
 fn read_config_file(key: String) -> Result<String, String> {
     let project_root = get_project_root();
     let configs = get_configs_definition();
@@ -862,6 +873,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             get_status,
+            get_config_status,
             read_config_file,
             write_config_file,
             adopt_config,

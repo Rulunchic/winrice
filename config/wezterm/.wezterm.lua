@@ -76,6 +76,11 @@ config.font_size = theme.font_size
 config.harfbuzz_features = { 'calt=0', 'clig=0', 'liga=0' }
 
 -- Color Theme & Custom Color Overrides (for high contrast)
+local indexed_colors = {}
+for i = 232, 255 do
+  indexed_colors[i] = dim_color
+end
+
 config.colors = {
   foreground = theme.fg_color,
   background = theme.bg_color,
@@ -83,13 +88,8 @@ config.colors = {
   cursor_border = theme.border_focused,
   selection_fg = theme.bg_color,
   selection_bg = theme.border_focused,
-  dim_text = dim_color,
+  indexed = indexed_colors,
 }
-
--- Override 256-color palette grayscale indices for readability
-for i = 232, 255 do
-  config.colors[i] = dim_color
-end
 
 -- Background Transparency & Blur (Acrylic)
 config.window_background_opacity = theme.opacity

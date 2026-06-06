@@ -20,6 +20,10 @@ local theme = {
 }
 -- @theme-end
 
+local bg = theme.bg_color:lower()
+local is_dark = bg:match("^#1") or bg:match("^#2") or bg:match("^#3")
+local dim_color = is_dark and '#909090' or '#504945'
+
 -- Create a custom high-contrast and readability variant of the selected color scheme
 local scheme = wezterm.color.get_builtin_schemes()[theme.color_scheme]
 if scheme then
@@ -33,8 +37,6 @@ if scheme then
   scheme.brights[7] = '#2894a8' -- bright cyan
 
   -- Readability overrides for gray text (brights[1]) in dark/light modes
-  local bg = theme.bg_color:lower()
-  local is_dark = bg:match("^#1") or bg:match("^#2")
   if is_dark then
     scheme.brights[1] = '#909090' -- Make gray text bright enough on dark background
     scheme.ansi[1] = '#505050'
@@ -81,7 +83,13 @@ config.colors = {
   cursor_border = theme.border_focused,
   selection_fg = theme.bg_color,
   selection_bg = theme.border_focused,
+  dim_text = dim_color,
 }
+
+-- Override 256-color palette grayscale indices for readability
+for i = 232, 255 do
+  config.colors[i] = dim_color
+end
 
 -- Background Transparency & Blur (Acrylic)
 config.window_background_opacity = theme.opacity

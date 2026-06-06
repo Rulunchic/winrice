@@ -697,6 +697,152 @@ local theme = {
 	w.Write(output)
 }
 
+type CustomPreset struct {
+	Name            string  `json:"name"`
+	BgColor         string  `json:"bg_color"`
+	FgColor         string  `json:"fg_color"`
+	AccentColor     string  `json:"accent_color"`
+	BorderFocused   string  `json:"border_focused"`
+	BorderUnfocused string  `json:"border_unfocused"`
+	Lavender        string  `json:"lavender"`
+	Lilac           string  `json:"lilac"`
+	LavenderGrey    string  `json:"lavender_grey"`
+	PineBlue        string  `json:"pine_blue"`
+	JungleTeal      string  `json:"jungle_teal"`
+}
+
+func handleGetPresets(w http.ResponseWriter, r *http.Request) {
+	enableCors(&w)
+	if r.Method == http.MethodOptions {
+		return
+	}
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	presetsFile := filepath.Join(projectRoot, "config", "theme_presets.json")
+	var list []CustomPreset
+
+	if _, err := os.Stat(presetsFile); err == nil {
+		data, err := os.ReadFile(presetsFile)
+		if err == nil {
+			_ = json.Unmarshal(data, &list)
+		}
+	}
+	if list == nil {
+		list = []CustomPreset{}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(list)
+}
+
+func handleSavePreset(w http.ResponseWriter, r *http.Request) {
+	enableCors(&w)
+	if r.Method == http.MethodOptions {
+		return
+	}
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var preset CustomPreset
+	if err := json.NewDecoder(r.Body).Decode(&preset); err != nil {
+		http.Error(w, "Invalid payload", http.StatusBadRequest)
+		return
+	}
+
+	presetsFile := filepath.Join(projectRoot, "config", "theme_presets.json")
+	var list []CustomPreset
+
+	if _, err := os.Stat(presetsFile); err == nil {
+		data, err := os.ReadFile(presetsFile)
+		if err == nil {
+			_ = json.Unmarshal(data, &list)
+		}
+	}
+
+	foundIdx := -1
+	for idx, val := range list {
+		if val.Name == preset.Name {
+			foundIdx = idx
+			break
+		}
+	}
+
+	if foundIdx != -1 {
+		list[foundIdx] = preset
+	} else {
+		list = append(list, preset)
+	}
+
+	outBytes, err := json.MarshalIndent(list, "", "  ")
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to marshal: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	if err := os.WriteFile(presetsFile, outBytes, 0644); err != nil {
+		http.Error(w, fmt.Sprintf("Failed to save preset: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprint(w, "Preset saved successfully")
+}
+
+func handleDeletePreset(w http.ResponseWriter, r *http.Request) {
+	enableCors(&w)
+	if r.Method == http.MethodOptions {
+		return
+	}
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var payload struct {
+		Name string `json:"name"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		http.Error(w, "Invalid payload", http.StatusBadRequest)
+		return
+	}
+
+	presetsFile := filepath.Join(projectRoot, "config", "theme_presets.json")
+	var list []CustomPreset
+
+	if _, err := os.Stat(presetsFile); err == nil {
+		data, err := os.ReadFile(presetsFile)
+		if err == nil {
+			_ = json.Unmarshal(data, &list)
+		}
+	}
+
+	var newList []CustomPreset
+	for _, val := range list {
+		if val.Name != payload.Name {
+			newList = append(newList, val)
+		}
+	}
+
+	outBytes, err := json.MarshalIndent(newList, "", "  ")
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to marshal: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	if err := os.WriteFile(presetsFile, outBytes, 0644); err != nil {
+		http.Error(w, fmt.Sprintf("Failed to write presets: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprint(w, "Preset deleted successfully")
+}
+
 func main() {
 	port := flag.Int("port", 54321, "Port to run the backend on")
 	flag.Parse()
@@ -725,6 +871,9 @@ func main() {
 	http.HandleFunc("/api/action/reload-glazewm", handleReloadGlazeWM)
 	http.HandleFunc("/api/theme", handleGetTheme)
 	http.HandleFunc("/api/theme/save", handleSaveTheme)
+	http.HandleFunc("/api/theme/presets", handleGetPresets)
+	http.HandleFunc("/api/theme/presets/save", handleSavePreset)
+	http.HandleFunc("/api/theme/presets/delete", handleDeletePreset)
 
 	addr := fmt.Sprintf("127.0.0.1:%d", *port)
 	fmt.Printf("WinRice Backend starting on http://%s\n", addr)

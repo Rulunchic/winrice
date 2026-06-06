@@ -49,6 +49,7 @@
   let isLoading = $state<boolean>(false);
   let editMode = $state<'visual' | 'text'>('visual');
   let searchQuery = $state<string>('');
+  let customPresets = $state<any[]>([]);
 
   // Parsed parameters for dynamic editing
   let parsedParams = $state<EditableParam[]>([]);
@@ -556,9 +557,95 @@
     }
   }
 
+  async function fetchCustomPresets() {
+    try {
+      const res = await fetch('/api/theme/presets');
+      if (res.ok) {
+        customPresets = await res.json();
+      }
+    } catch (e) {
+      console.warn('Failed to fetch custom presets:', e);
+    }
+  }
+
+  function applyCustomPreset(cp: any) {
+    theme = {
+      ...theme,
+      bg_color: cp.bg_color,
+      fg_color: cp.fg_color,
+      accent_color: cp.accent_color,
+      border_focused: cp.border_focused,
+      border_unfocused: cp.border_unfocused,
+      lavender: cp.lavender,
+      lilac: cp.lilac,
+      lavender_grey: cp.lavender_grey,
+      pine_blue: cp.pine_blue,
+      jungle_teal: cp.jungle_teal,
+    };
+    statusMsg = `Loaded custom theme: ${cp.name}`;
+  }
+
+  async function deleteCustomPreset(name: string) {
+    if (!confirm(`Are you sure you want to delete custom theme "${name}"?`)) return;
+    try {
+      const res = await fetch('/api/theme/presets/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name })
+      });
+      if (res.ok) {
+        statusMsg = `Deleted custom theme "${name}"`;
+        await fetchCustomPresets();
+        setTimeout(() => { if (statusMsg.includes('Deleted')) statusMsg = ''; }, 2000);
+      } else {
+        statusMsg = 'Failed to delete theme preset';
+      }
+    } catch (e) {
+      statusMsg = `Error deleting: ${e}`;
+    }
+  }
+
+  async function promptSaveCustomPreset() {
+    const name = prompt('Enter a name for your custom theme:');
+    if (!name || !name.trim()) return;
+    
+    const payload = {
+      name: name.trim(),
+      bg_color: theme.bg_color,
+      fg_color: theme.fg_color,
+      accent_color: theme.accent_color,
+      border_focused: theme.border_focused,
+      border_unfocused: theme.border_unfocused,
+      lavender: theme.lavender,
+      lilac: theme.lilac,
+      lavender_grey: theme.lavender_grey,
+      pine_blue: theme.pine_blue,
+      jungle_teal: theme.jungle_teal,
+    };
+
+    try {
+      const res = await fetch('/api/theme/presets/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) {
+        statusMsg = `Saved custom theme "${name}"`;
+        await fetchCustomPresets();
+        setTimeout(() => { if (statusMsg.includes('Saved')) statusMsg = ''; }, 2000);
+      } else {
+        const txt = await res.text();
+        statusMsg = `Save failed: ${txt}`;
+      }
+    } catch (e) {
+      statusMsg = `Save failed: ${e}`;
+    }
+  }
+
   onMount(async () => {
     await fetchStatus();
     await fetchTheme();
+    await fetchCustomPresets();
     const interval = setInterval(fetchStatus, 5000);
     return () => clearInterval(interval);
   });
@@ -602,6 +689,25 @@
           </button>
         {/each}
       </div>
+
+      {#if customPresets.length > 0}
+        <div class="section-title" style="margin-top: 20px;">CUSTOM THEMES</div>
+        <div class="preset-list">
+          {#each customPresets as cp}
+            <div class="custom-preset-row">
+              <button class="preset-item" onclick={() => applyCustomPreset(cp)} style="flex-grow: 1;">
+                <div class="preset-preview">
+                  <span class="preview-dot" style="background: {cp.bg_color}"></span>
+                  <span class="preview-dot" style="background: {cp.border_focused}"></span>
+                  <span class="preview-dot" style="background: {cp.accent_color}"></span>
+                </div>
+                <span class="preset-name">{cp.name}</span>
+              </button>
+              <button class="delete-preset-btn" onclick={() => deleteCustomPreset(cp.name)} title="Delete theme">×</button>
+            </div>
+          {/each}
+        </div>
+      {/if}
     {:else}
       <div class="section-title">CONFIGURATIONS</div>
       <div class="config-list">
@@ -630,7 +736,10 @@
       <div class="theme-editor">
         <div class="editor-header">
           <h2>Visual Global Theme Settings</h2>
-          <button class="primary" onclick={saveTheme} disabled={isLoading}>Save & Apply Theme</button>
+          <div class="header-actions">
+            <button class="secondary" onclick={promptSaveCustomPreset}>Save as Custom Theme...</button>
+            <button class="primary" onclick={saveTheme} disabled={isLoading}>Save & Apply Theme</button>
+          </div>
         </div>
 
         <p class="subtitle">Modifying values here updates WezTerm config and runs the theme syncer to update GlazeWM and Zebar status bar globally.</p>
@@ -1440,5 +1549,33 @@
   .add-param-btn:hover {
     background: var(--accent);
     color: var(--accent-fg);
+  }
+
+  .custom-preset-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 4px;
+    width: 100%;
+  }
+
+  .delete-preset-btn {
+    background: transparent;
+    border: none;
+    color: var(--fg-muted);
+    font-size: 1.1rem;
+    padding: 2px 6px;
+    cursor: pointer;
+    line-height: 1;
+    transition: color 80ms ease;
+  }
+
+  .delete-preset-btn:hover {
+    color: var(--accent);
+  }
+
+  .header-actions {
+    display: flex;
+    gap: 8px;
   }
 </style>

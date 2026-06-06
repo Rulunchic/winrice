@@ -36,6 +36,11 @@ if ($content -match '(?s)--\s*@theme\r?\n(.*?)\r?\n--\s*@theme-end') {
     $bg_color = Get-StringValue "bg_color"
     $fg_color = Get-StringValue "fg_color"
     $accent_color = Get-StringValue "accent_color"
+    $lavender = Get-StringValue "lavender"
+    $lilac = Get-StringValue "lilac"
+    $lavender_grey = Get-StringValue "lavender_grey"
+    $pine_blue = Get-StringValue "pine_blue"
+    $jungle_teal = Get-StringValue "jungle_teal"
     
     # 1. Update GlazeWM config.yaml border colors
     if (Test-Path $glazewmPath) {
@@ -83,11 +88,11 @@ if ($content -match '(?s)--\s*@theme\r?\n(.*?)\r?\n--\s*@theme-end') {
   --opacity: $opacity;
 
   /* Full user palette references */
-  --lavender: #dfd9e2;
-  --lilac: #c3acce;
-  --lavender-grey: #89909f;
-  --pine-blue: #538083;
-  --jungle-teal: #2a7f62;
+  --lavender: $lavender;
+  --lilac: $lilac;
+  --lavender-grey: $lavender_grey;
+  --pine-blue: $pine_blue;
+  --jungle-teal: $jungle_teal;
 }
 "@
     

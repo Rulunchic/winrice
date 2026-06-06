@@ -99,7 +99,70 @@ if ($content -match '(?s)--\s*@theme\r?\n(.*?)\r?\n--\s*@theme-end') {
     Set-Content $zebarThemePath $cssContent -NoNewline
     Write-Host "Updated Zebar theme.css."
     
-    # 3. Reload GlazeWM config
+    # 3. Update Windows Theme (Light / Dark)
+    $isDark = 0
+    if ($bg_color -match '^#(1a|28|24|1[0-9a-fA-F]|2[0-9a-fA-F])') {
+        $isDark = 1
+    }
+    
+    if ($isDark -eq 1) {
+        Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize" -Name "AppsUseLightTheme" -Value 0 -ErrorAction SilentlyContinue
+        Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize" -Name "SystemUsesLightTheme" -Value 0 -ErrorAction SilentlyContinue
+        Write-Host "Set Windows System Theme to Dark Mode."
+    } else {
+        Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize" -Name "AppsUseLightTheme" -Value 1 -ErrorAction SilentlyContinue
+        Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize" -Name "SystemUsesLightTheme" -Value 1 -ErrorAction SilentlyContinue
+        Write-Host "Set Windows System Theme to Light Mode."
+    }
+
+    # 4. Update VS Code theme in settings.json
+    $vscodePath = "C:\Users\Timofey\AppData\Roaming\Code\User\settings.json"
+    if (Test-Path $vscodePath) {
+        try {
+            $vscodeJson = Get-Content $vscodePath -Raw | ConvertFrom-Json
+            $vsTheme = "Zenbones Light"
+            if ($bg_color -eq '#1a1b26') { $vsTheme = "Tokyo Night" }
+            elseif ($bg_color -eq '#282828') { $vsTheme = "Gruvbox Dark Medium" }
+            elseif ($bg_color -eq '#24273a') { $vsTheme = "Catppuccin Macchiato" }
+            elseif ($isDark -eq 1) { $vsTheme = "Zenbones Dark" }
+            
+            if ($null -eq $vscodeJson.'workbench.colorTheme' -or $vscodeJson.'workbench.colorTheme' -ne $vsTheme) {
+                $vscodeJson | Add-Member -NotePropertyName "workbench.colorTheme" -NotePropertyValue $vsTheme -Force
+                $vscodeJson | ConvertTo-Json -Depth 10 | Set-Content $vscodePath
+                Write-Host "Updated VS Code theme to $vsTheme"
+            }
+        } catch {
+            Write-Warning "Failed to update VS Code theme: $_"
+        }
+    }
+
+    # 5. Update Zed Editor theme in settings.json
+    $zedPath = "C:\Users\Timofey\AppData\Roaming\Zed\settings.json"
+    if (Test-Path $zedPath) {
+        try {
+            $zedJson = Get-Content $zedPath -Raw | ConvertFrom-Json
+            $zedTheme = "Zenbones Light"
+            $zedMode = "light"
+            if ($bg_color -eq '#1a1b26') { $zedTheme = "Tokyo Night"; $zedMode = "dark" }
+            elseif ($bg_color -eq '#282828') { $zedTheme = "Gruvbox Dark"; $zedMode = "dark" }
+            elseif ($bg_color -eq '#24273a') { $zedTheme = "Catppuccin Macchiato"; $zedMode = "dark" }
+            elseif ($isDark -eq 1) { $zedTheme = "Zenbones Dark"; $zedMode = "dark" }
+            
+            if ($null -eq $zedJson.theme) {
+                $zedJson | Add-Member -NotePropertyName "theme" -NotePropertyValue @{ mode = $zedMode; light = $zedTheme; dark = $zedTheme } -Force
+            } else {
+                $zedJson.theme.mode = $zedMode
+                $zedJson.theme.light = $zedTheme
+                $zedJson.theme.dark = $zedTheme
+            }
+            $zedJson | ConvertTo-Json -Depth 10 | Set-Content $zedPath
+            Write-Host "Updated Zed Editor theme to $zedTheme"
+        } catch {
+            Write-Warning "Failed to update Zed theme: $_"
+        }
+    }
+
+    # 6. Reload GlazeWM config
     & glazewm command wm-reload-config
     Write-Host "Reloaded GlazeWM config."
 } else {

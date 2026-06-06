@@ -24,6 +24,7 @@ type ConfigInfo struct {
 	IsSymlink  bool   `json:"isSymlink"`  // Active path is a symlink
 	SymlinkTo  string `json:"symlinkTo"`  // Where active symlink points
 	IsDir      bool   `json:"isDir"`
+	SkipLink   bool   `json:"skipLink"`
 }
 
 var configs = []ConfigInfo{
@@ -43,10 +44,26 @@ var configs = []ConfigInfo{
 	},
 	{
 		Key:        "zebar",
-		Name:       "Zebar",
+		Name:       "Zebar Directory",
 		TargetPath: "C:\\Users\\Timofey\\.glzr\\zebar",
 		RepoPath:   "config\\zebar",
 		IsDir:      true,
+	},
+	{
+		Key:        "zebar_settings",
+		Name:       "Zebar Settings",
+		TargetPath: "C:\\Users\\Timofey\\.glzr\\zebar\\settings.json",
+		RepoPath:   "config\\zebar\\settings.json",
+		IsDir:      false,
+		SkipLink:   true,
+	},
+	{
+		Key:        "zebar_zpack",
+		Name:       "Zebar Layout (zpack)",
+		TargetPath: "C:\\Users\\Timofey\\.glzr\\zebar\\custom-mei\\zpack.json",
+		RepoPath:   "config\\zebar\\custom-mei\\zpack.json",
+		IsDir:      false,
+		SkipLink:   true,
 	},
 	{
 		Key:        "fastfetch",
@@ -423,7 +440,7 @@ func performAutoAdoptAndLink() {
 	for _, c := range configs {
 		info := getInfo(c)
 		// 1. Adopt if exists on C: but not in repo
-		if info.Exists && !info.InRepo {
+		if info.Exists && !info.InRepo && !c.SkipLink {
 			fmt.Printf("Auto-Adopting configuration: %s...\n", c.Name)
 			if err := adoptConfigSync(c); err != nil {
 				fmt.Printf("Warning: failed to auto-adopt %s: %v\n", c.Name, err)
@@ -434,7 +451,7 @@ func performAutoAdoptAndLink() {
 		info = getInfo(c)
 
 		// 2. Link if in repo but not symlinked
-		if info.InRepo && !info.IsSymlink {
+		if info.InRepo && !info.IsSymlink && !c.SkipLink {
 			fmt.Printf("Auto-Linking configuration: %s...\n", c.Name)
 			if err := linkConfigSync(c); err != nil {
 				fmt.Printf("Warning: failed to auto-link %s: %v\n", c.Name, err)

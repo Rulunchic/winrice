@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
 
   interface ConfigInfo {
     key: string;
@@ -131,8 +131,92 @@
     }
   };
 
+  const knownAdditionalParams: Record<string, { path: string; type: 'string' | 'number' | 'boolean' | 'color'; default: any; desc: string }[]> = {
+    wezterm: [
+      { path: 'scrollback_lines', type: 'number', default: 3500, desc: 'Scrollback limit lines' },
+      { path: 'adjust_window_size_when_changing_font_size', type: 'boolean', default: false, desc: 'Do not resize window on font zoom' },
+      { path: 'cursor_blink_rate', type: 'number', default: 800, desc: 'Cursor blink interval (ms)' },
+      { path: 'cursor_thickness', type: 'string', default: '2pt', desc: 'Thickness of cursor' },
+      { path: 'audible_bell', type: 'string', default: 'Disabled', desc: 'System beep configuration' },
+    ],
+    glazewm: [
+      { path: 'general.focus_follows_cursor', type: 'boolean', default: false, desc: 'Focus windows when cursor hovers' },
+      { path: 'general.toggle_workspace_on_refocus', type: 'boolean', default: false, desc: 'Toggle back on workspace refocus' },
+      { path: 'gaps.inner_gap', type: 'string', default: '10px', desc: 'Inner window gaps' },
+    ],
+    fastfetch: [
+      { path: 'logo.type', type: 'string', default: 'small', desc: 'Logo size (small, normal)' },
+      { path: 'logo.padding.left', type: 'number', default: 2, desc: 'Left padding of fastfetch logo' },
+    ],
+    zed: [
+      { path: 'ui_font_size', type: 'number', default: 16, desc: 'Editor UI font size' },
+      { path: 'buffer_font_size', type: 'number', default: 16, desc: 'Text buffer font size' },
+      { path: 'telemetry.diagnostics', type: 'boolean', default: false, desc: 'Telemetry diagnostics reports' },
+      { path: 'telemetry.metrics', type: 'boolean', default: false, desc: 'Telemetry metrics reporting' },
+      { path: 'autosave', type: 'string', default: 'off', desc: 'Autosave mode (on_focus_change, off)' },
+    ],
+    vscode: [
+      { path: 'editor.fontSize', type: 'number', default: 14, desc: 'Editor Font Size' },
+      { path: 'editor.fontFamily', type: 'string', default: 'JetBrains Mono', desc: 'Editor Font Family' },
+      { path: 'editor.minimap.enabled', type: 'boolean', default: true, desc: 'Show minimap bar' },
+      { path: 'editor.tabSize', type: 'number', default: 4, desc: 'Tab spacing count' },
+      { path: 'editor.lineNumbers', type: 'string', default: 'on', desc: 'Line numbers rendering' },
+      { path: 'editor.wordWrap', type: 'string', default: 'off', desc: 'Word wrap mode' },
+      { path: 'terminal.integrated.fontSize', type: 'number', default: 14, desc: 'Terminal Font Size' },
+    ],
+    komorebi: [
+      { path: 'border', type: 'boolean', default: true, desc: 'Highlight active window borders' },
+      { path: 'border_width', type: 'number', default: 2, desc: 'Border thickness' },
+      { path: 'border_colour_single', type: 'color', default: '#2b6f7c', desc: 'Active border color' },
+      { path: 'border_colour_stack', type: 'color', default: '#dfd9e2', desc: 'Stack border color' },
+      { path: 'border_colour_monocle', type: 'color', default: '#c3acce', desc: 'Monocle border color' },
+      { path: 'stackbar.enabled', type: 'boolean', default: false, desc: 'Enable titlebars for stacks' },
+    ],
+    komorebi_bar: [
+      { path: 'height', type: 'number', default: 24, desc: 'Komorebi bar height' },
+      { path: 'fontSize', type: 'number', default: 12, desc: 'Komorebi bar font size' },
+    ],
+    whkd: [
+      { path: 'alt + return', type: 'string', default: 'wt', desc: 'Shortcut to launch terminal' },
+    ],
+    gitconfig: [
+      { path: 'core.autocrlf', type: 'boolean', default: true, desc: 'Git autocrlf conversion' },
+      { path: 'color.ui', type: 'string', default: 'auto', desc: 'Git colorized output' },
+    ],
+    zebar_settings: [
+      { path: 'startupConfigs.0.preset', type: 'string', default: 'default', desc: 'Active widget preset' },
+    ],
+    zebar_zpack: [
+      { path: 'widgets.0.presets.0.height', type: 'string', default: '30px', desc: 'Widget panel height' },
+      { path: 'widgets.0.presets.0.width', type: 'string', default: '100%', desc: 'Widget panel width' },
+      { path: 'widgets.0.presets.0.anchor', type: 'string', default: 'top_left', desc: 'Anchor placement' },
+      { path: 'widgets.0.presets.0.offsetX', type: 'string', default: '0px', desc: 'Horizontal offset' },
+      { path: 'widgets.0.presets.0.offsetY', type: 'string', default: '0px', desc: 'Vertical offset' },
+      { path: 'widgets.0.shownInTaskbar', type: 'boolean', default: false, desc: 'Display panel in Windows taskbar' },
+      { path: 'widgets.0.transparent', type: 'boolean', default: true, desc: 'Transparent panel background' },
+    ]
+  };
+
   // Computed state
   let selectedConfig = $derived(configs.find(c => c.key === selectedKey));
+
+  // Find parameters that are supported but not currently in parsedParams
+  let missingParams = $derived(
+    (knownAdditionalParams[selectedKey] || []).filter(kp => !parsedParams.some(p => p.path === kp.path))
+  );
+
+  function addParameter(path: string, type: 'string' | 'number' | 'boolean' | 'color', defaultValue: any) {
+    parsedParams = [
+      ...parsedParams,
+      {
+        path,
+        rawKey: path,
+        value: defaultValue,
+        type,
+        isJson: ['zed', 'vscode', 'komorebi', 'komorebi_bar', 'fastfetch', 'zebar_settings', 'zebar_zpack'].includes(selectedKey),
+      }
+    ];
+  }
 
   // Helper function to flatten JSON objects recursively
   function flattenObject(ob: any): any {
@@ -242,7 +326,7 @@
   // Parse config values into a generic list of parameters
   function parseConfigToParams(key: string, content: string) {
     parsedParams = [];
-    const isJsonFile = ['zed', 'vscode', 'komorebi', 'komorebi_bar', 'fastfetch'].includes(key);
+    const isJsonFile = ['zed', 'vscode', 'komorebi', 'komorebi_bar', 'fastfetch', 'zebar_settings', 'zebar_zpack'].includes(key);
 
     if (isJsonFile) {
       try {
@@ -313,7 +397,7 @@
 
   // Serialize parameters back to the original config format
   function serializeParamsToContent(key: string, content: string): string {
-    const isJsonFile = ['zed', 'vscode', 'komorebi', 'komorebi_bar', 'fastfetch'].includes(key);
+    const isJsonFile = ['zed', 'vscode', 'komorebi', 'komorebi_bar', 'fastfetch', 'zebar_settings', 'zebar_zpack'].includes(key);
 
     if (isJsonFile) {
       const flatTable: any = {};
@@ -372,7 +456,49 @@
     if (!selectedKey) return;
     statusMsg = 'Saving...';
     
-    const contentToSave = visual ? serializeParamsToContent(selectedKey, rawContent) : rawContent;
+    let contentToSave = visual ? serializeParamsToContent(selectedKey, rawContent) : rawContent;
+
+    // For line-based files, append any newly added parameters that don't have lineIndex
+    if (visual && !['zed', 'vscode', 'komorebi', 'komorebi_bar', 'fastfetch', 'zebar_settings', 'zebar_zpack'].includes(selectedKey)) {
+      const lines = contentToSave.split(/\r?\n/);
+      let appended = false;
+      for (const p of parsedParams) {
+        if (p.lineIndex === undefined) {
+          let strVal = String(p.value);
+          if (p.type === 'color' || p.type === 'string') {
+            if (selectedKey === 'wezterm' || selectedKey === 'gitconfig') {
+              strVal = `'${p.value}'`;
+            }
+          }
+          let newLine = '';
+          if (selectedKey === 'wezterm') {
+            newLine = `config.${p.path} = ${strVal}`;
+          } else if (selectedKey === 'glazewm') {
+            newLine = `${p.path}: ${strVal}`;
+          } else if (selectedKey === 'gitconfig') {
+            newLine = `${p.path} = ${strVal}`;
+          } else if (selectedKey === 'whkd') {
+            newLine = `${p.path} : ${strVal}`;
+          }
+          if (newLine) {
+            if (selectedKey === 'wezterm') {
+              const returnIndex = lines.findIndex(l => l.trim() === 'return config');
+              if (returnIndex !== -1) {
+                lines.splice(returnIndex, 0, newLine);
+              } else {
+                lines.push(newLine);
+              }
+            } else {
+              lines.push(newLine);
+            }
+            appended = true;
+          }
+        }
+      }
+      if (appended) {
+        contentToSave = lines.join('\n');
+      }
+    }
 
     try {
       const res = await fetch('/api/file/write', {
@@ -439,7 +565,9 @@
 
   $effect(() => {
     if (selectedKey && activeTab === 'configs') {
-      loadFile(selectedKey);
+      untrack(() => {
+        loadFile(selectedKey);
+      });
     }
   });
 </script>
@@ -684,6 +812,25 @@
                     </div>
                   </div>
                 {/each}
+              {/if}
+
+              {#if missingParams.length > 0}
+                <div class="additional-params-section">
+                  <div class="section-title-small">ADD SUPPORTED SETTINGS</div>
+                  <div class="missing-params-grid">
+                    {#each missingParams as kp}
+                      <div class="missing-param-row">
+                        <div class="missing-param-info">
+                          <span class="missing-param-path">{kp.path}</span>
+                          <span class="missing-param-desc">{kp.desc}</span>
+                        </div>
+                        <button class="add-param-btn" onclick={() => addParameter(kp.path, kp.type, kp.default)}>
+                          + Add Option
+                        </button>
+                      </div>
+                    {/each}
+                  </div>
+                </div>
               {/if}
             </div>
           </div>
@@ -1230,6 +1377,68 @@
 
   button.primary:hover {
     opacity: 0.9;
+    color: var(--accent-fg);
+  }
+
+  .additional-params-section {
+    margin-top: 24px;
+    border-top: 1px dashed var(--border);
+    padding-top: 16px;
+  }
+
+  .section-title-small {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--accent);
+    letter-spacing: 0.05em;
+    margin-bottom: 12px;
+  }
+
+  .missing-params-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .missing-param-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background: rgba(0, 0, 0, 0.015);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    gap: 12px;
+  }
+
+  .missing-param-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .missing-param-path {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--fg);
+  }
+
+  .missing-param-desc {
+    font-size: 0.75rem;
+    color: var(--fg-muted);
+  }
+
+  .add-param-btn {
+    font-size: 0.75rem;
+    padding: 2px 8px;
+    border-color: var(--accent);
+    color: var(--accent);
+    background: transparent;
+  }
+
+  .add-param-btn:hover {
+    background: var(--accent);
     color: var(--accent-fg);
   }
 </style>

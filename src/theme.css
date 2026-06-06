@@ -1,37 +1,37 @@
-/* Theme: geek-minimal. Override the values below to switch palettes.
- * Rules: opaque panels, no backdrop-filter, no box-shadow, no gradients,
- * one accent, no status colors. See the design-ui skill for the full spec. */
+/* Theme: Zenbones Sand.
+   Aligned with user_profile style guidelines and design-ui G2G conventions. */
 
 :root {
   /* Surfaces */
-  --bg-base:    #0e1014;
-  --bg-panel:   #161922;
+  --bg-base:    #f0edec; /* Zenbones Sand */
+  --bg-panel:   #e6e2e0; /* Opaque slightly darker Sand panel */
 
   /* Text */
-  --fg:         #d4d6db;
-  --fg-muted:   #8b8f9a;
-  --fg-subtle:  #5a5e68;
+  --fg:         #2c363c; /* Zenbones Stone */
+  --fg-muted:   #605754; /* Muted sand-stone */
+  --fg-subtle:  #908480; /* Subtle text */
 
-  /* Single accent */
-  --accent:     #5eead4;
-  --accent-fg:  #0e1014;
+  /* Accent (Zenbones Water/Teal) */
+  --accent:     #2b6f7c;
+  --accent-fg:  #ffffff;
 
   /* Lines */
-  --border:     rgba(212, 214, 219, 0.10);
+  --border:     rgba(44, 54, 60, 0.18);
 
-  /* Optional: monospace font override */
-  --font-mono:  'JetBrains Mono';
+  /* Font */
+  --font-mono:  'JetBrains Mono', 'Cascadia Code', monospace;
 }
 
-@media (prefers-color-scheme: light) {
+@media (prefers-color-scheme: dark) {
+  /* Optional Zenbones Dark variant if the user switches system colors */
   :root {
-    --bg-base:    #fafafa;
-    --bg-panel:   #ffffff;
-    --fg:         #1a1d23;
-    --fg-muted:   #5a5e68;
-    --fg-subtle:  #8b8f9a;
-    --accent:     #0d9488;
-    --accent-fg:  #ffffff;
-    --border:     rgba(26, 29, 35, 0.12);
+    --bg-base:    #1c1917;
+    --bg-panel:   #262220;
+    --fg:         #b2a9a5;
+    --fg-muted:   #8a7f7a;
+    --fg-subtle:  #645c58;
+    --accent:     #8bc34a;
+    --accent-fg:  #1c1917;
+    --border:     rgba(178, 169, 165, 0.18);
   }
 }

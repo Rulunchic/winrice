@@ -2,17 +2,17 @@
 :root {
   --font-family: 'JetBrains Mono', monospace;
   --font-size: 14px;
-  --bg-color: rgba(26, 27, 38, 0.85);
-  --fg-color: #c0caf5;
-  --border-focused: #7aa2f7;
-  --border-unfocused: #3b4261;
-  --accent-color: #33467c;
+  --bg-color: rgba(240, 237, 236, 0.85);
+  --fg-color: #2c363c;
+  --border-focused: #2b6f7c;
+  --border-unfocused: #b2a9a5;
+  --accent-color: #cbd9e3;
   --opacity: 0.85;
 
   /* Full user palette references */
-  --lavender: #bb9af7;
-  --lilac: #9d7cd8;
-  --lavender-grey: #565f89;
-  --pine-blue: #0db9d7;
-  --jungle-teal: #41a6b5;
+  --lavender: #dfd9e2;
+  --lilac: #c3acce;
+  --lavender-grey: #89909f;
+  --pine-blue: #538083;
+  --jungle-teal: #2a7f62;
 }

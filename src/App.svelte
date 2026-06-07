@@ -584,6 +584,48 @@
     statusMsg = `Loaded custom theme: ${cp.name}`;
   }
 
+  async function renameCustomPreset(oldName: string) {
+    const newName = prompt(`Enter a new name for "${oldName}":`, oldName);
+    if (!newName || !newName.trim() || newName.trim() === oldName) return;
+    
+    try {
+      await invoke('rename_preset', { oldName, newName: newName.trim() });
+      statusMsg = `Renamed "${oldName}" to "${newName.trim()}"`;
+      await fetchCustomPresets();
+      setTimeout(() => { if (statusMsg.includes('Renamed')) statusMsg = ''; }, 2000);
+    } catch (e) {
+      statusMsg = `Rename failed: ${e}`;
+      alert(`Failed to rename preset: ${e}`);
+    }
+  }
+
+  async function updateCustomPreset(cp: any) {
+    if (!confirm(`Overwrite custom preset "${cp.name}" with current active theme colors?`)) return;
+    const preset = {
+      name: cp.name,
+      bg_color: theme.bg_color,
+      fg_color: theme.fg_color,
+      accent_color: theme.accent_color,
+      border_focused: theme.border_focused,
+      border_unfocused: theme.border_unfocused,
+      lavender: theme.lavender,
+      lilac: theme.lilac,
+      lavender_grey: theme.lavender_grey,
+      pine_blue: theme.pine_blue,
+      jungle_teal: theme.jungle_teal,
+    };
+
+    try {
+      await invoke('save_preset', { preset });
+      statusMsg = `Updated custom theme "${cp.name}"`;
+      await fetchCustomPresets();
+      setTimeout(() => { if (statusMsg.includes('Updated')) statusMsg = ''; }, 2000);
+    } catch (e) {
+      statusMsg = `Update failed: ${e}`;
+      alert(`Failed to update preset: ${e}`);
+    }
+  }
+
   async function deleteCustomPreset(name: string) {
     if (!confirm(`Are you sure you want to delete custom theme "${name}"?`)) return;
     try {
@@ -782,7 +824,11 @@
                 </div>
                 <span class="preset-name">{cp.name}</span>
               </button>
-              <button class="delete-preset-btn" onclick={() => deleteCustomPreset(cp.name)} title="Delete theme">×</button>
+              <div class="preset-actions">
+                <button class="action-btn update-preset-btn" onclick={() => updateCustomPreset(cp)} title="Overwrite this preset with current settings">💾</button>
+                <button class="action-btn rename-preset-btn" onclick={() => renameCustomPreset(cp.name)} title="Rename preset">✏️</button>
+                <button class="action-btn delete-preset-btn" onclick={() => deleteCustomPreset(cp.name)} title="Delete preset">🗑️</button>
+              </div>
             </div>
           {/each}
         </div>
@@ -1686,19 +1732,30 @@
     width: 100%;
   }
 
-  .delete-preset-btn {
-    background: transparent;
-    border: none;
-    color: var(--fg-muted);
-    font-size: 1.1rem;
-    padding: 2px 6px;
-    cursor: pointer;
-    line-height: 1;
-    transition: color 80ms ease;
+  .preset-actions {
+    display: flex;
+    gap: 2px;
+    align-items: center;
   }
 
-  .delete-preset-btn:hover {
-    color: var(--accent);
+  .preset-actions .action-btn {
+    background: transparent;
+    border: none;
+    font-size: 0.9rem;
+    padding: 4px;
+    cursor: pointer;
+    line-height: 1;
+    transition: opacity 80ms ease, transform 80ms ease;
+    opacity: 0.3;
+  }
+
+  .custom-preset-row:hover .preset-actions .action-btn {
+    opacity: 0.7;
+  }
+
+  .preset-actions .action-btn:hover {
+    opacity: 1 !important;
+    transform: scale(1.1);
   }
 
   .header-actions {

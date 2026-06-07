@@ -905,6 +905,37 @@ fn delete_preset(name: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn rename_preset(old_name: String, new_name: String) -> Result<(), String> {
+    let project_root = get_project_root();
+    let presets_file = project_root.join("config").join("theme_presets.json");
+
+    if !presets_file.exists() {
+        return Err("Presets file not found".to_string());
+    }
+
+    let mut list = get_presets().unwrap_or_else(|_| Vec::new());
+    
+    // Check if new_name already exists to prevent duplicate issues
+    if list.iter().any(|p| p.name == new_name) {
+        return Err("A preset with the new name already exists".to_string());
+    }
+
+    if let Some(idx) = list.iter().position(|p| p.name == old_name) {
+        list[idx].name = new_name;
+    } else {
+        return Err("Preset not found".to_string());
+    }
+
+    let out_bytes = serde_json::to_string_pretty(&list)
+        .map_err(|e| format!("Failed to serialize presets: {}", e))?;
+
+    std::fs::write(presets_file, out_bytes)
+        .map_err(|e| format!("Failed to write presets file: {}", e))?;
+
+    Ok(())
+}
+
+#[tauri::command]
 fn write_log(message: String) -> Result<(), String> {
     let log_path = get_appdata_dir().join("winrice-debug.log");
     let mut file = std::fs::OpenOptions::new()
@@ -959,6 +990,7 @@ pub fn run() {
             get_presets,
             save_preset,
             delete_preset,
+            rename_preset,
             write_log,
             get_log_path,
         ])

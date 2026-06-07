@@ -213,6 +213,29 @@ if ($content -match '(?s)--\s*@theme\r?\n(.*?)\r?\n--\s*@theme-end') {
     $wshell = New-Object -ComObject Wscript.Shell
     $wshell.Run("zebar", 0, $false)
     Write-Host "Restarted Zebar."
+
+    # 8. Restart Pinterest Collage to apply wallpaper settings immediately
+    Stop-Process -Name "pinterest-collage" -Force -ErrorAction SilentlyContinue
+    Start-Sleep -Milliseconds 200
+    $pinterestExePaths = @(
+        "E:\Dev\projects\pinterest-collage\pinterest-collage.exe",
+        (Join-Path $HOME "Dev\projects\pinterest-collage\pinterest-collage.exe"),
+        (Join-Path $HOME "projects\pinterest-collage\pinterest-collage.exe"),
+        (Join-Path $env:APPDATA "pinterest-collage\pinterest-collage.exe")
+    )
+    $started = $false
+    foreach ($exePath in $pinterestExePaths) {
+        if (Test-Path $exePath) {
+            $workingDir = Split-Path $exePath -Parent
+            Start-Process -FilePath $exePath -WorkingDirectory $workingDir -WindowStyle Hidden
+            Write-Host "Restarted Pinterest Collage from $exePath"
+            $started = $true
+            break
+        }
+    }
+    if (-not $started) {
+        Write-Warning "Pinterest Collage executable not found. Could not restart."
+    }
 } else {
     Write-Warning "Could not find a valid -- @theme block in $weztermPath"
 }

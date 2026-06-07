@@ -576,6 +576,54 @@ fn read_config_file(key: String) -> Result<String, String> {
     std::fs::read_to_string(&info.repo_path).map_err(|e| e.to_string())
 }
 
+fn restart_pinterest_collage() {
+    let home = get_home_dir();
+    let appdata = get_appdata_dir();
+    
+    let config_path = find_pinterest_collage_config();
+    let mut exe_path = None;
+    
+    let path = std::path::Path::new(&config_path);
+    if let Some(parent) = path.parent() {
+        let possible_exe = parent.join("pinterest-collage.exe");
+        if possible_exe.exists() {
+            exe_path = Some(possible_exe);
+        }
+    }
+    
+    if exe_path.is_none() {
+        let candidates = [
+            std::path::PathBuf::from("E:\\Dev\\projects\\pinterest-collage\\pinterest-collage.exe"),
+            home.join("Dev").join("projects").join("pinterest-collage").join("pinterest-collage.exe"),
+            home.join("projects").join("pinterest-collage").join("pinterest-collage.exe"),
+            appdata.join("pinterest-collage").join("pinterest-collage.exe"),
+        ];
+
+        for path in &candidates {
+            if path.exists() {
+                exe_path = Some(path.clone());
+                break;
+            }
+        }
+    }
+
+    if let Some(exe) = exe_path {
+        let exe_str = exe.to_string_lossy().to_string();
+        let parent_str = exe.parent().map(|p| p.to_string_lossy().to_string()).unwrap_or_default();
+        let mut cmd = Command::new("powershell");
+        cmd.args([
+            "-NoProfile",
+            "-Command",
+            &format!(
+                "Stop-Process -Name pinterest-collage -Force -ErrorAction SilentlyContinue; Start-Sleep -Milliseconds 200; Start-Process '{}' -WorkingDirectory '{}' -WindowStyle Hidden",
+                exe_str, parent_str
+            )
+        ]);
+        configure_command(&mut cmd);
+        let _ = cmd.output();
+    }
+}
+
 #[tauri::command]
 fn write_config_file(key: String, content: String) -> Result<(), String> {
     let project_root = get_project_root();
@@ -598,6 +646,10 @@ fn write_config_file(key: String, content: String) -> Result<(), String> {
     // Fallback copy: if symlinking is not active, also write to the target on C:
     if !info.is_symlink && info.exists {
         let _ = std::fs::write(&info.target_path, &content);
+    }
+
+    if key == "pinterest_collage" {
+        restart_pinterest_collage();
     }
 
     Ok(())
